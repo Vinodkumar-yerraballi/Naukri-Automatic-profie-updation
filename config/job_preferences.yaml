@@ -1,0 +1,49 @@
+job_search:
+
+  roles:
+    - Data Analyst
+    - Junior Data Analyst
+    - Data Scientist
+    - Junior Data Scientist
+    - Machine Learning Engineer
+    - ML Engineer
+    - AI Analyst
+
+  locations:
+    - Remote
+    - Bangalore
+    - Hyderabad
+    - Chennai
+
+  work_modes:
+    - Remote
+    - Hybrid
+
+  experience:
+    minimum: 0
+    maximum: 2
+
+  employment_type:
+    - Full Time
+
+
+matching:
+
+  minimum_score: 85
+
+  role_weight: 25
+  skill_weight: 30
+  experience_weight: 20
+  location_weight: 10
+  education_weight: 5
+  freshness_weight: 5
+  salary_weight: 5
+
+
+application:
+
+  mode: review
+
+  auto_apply: false
+
+  maximum_applications_per_day: 15

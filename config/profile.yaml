@@ -1,0 +1,52 @@
+candidate:
+  name: "Vinod Kumar Yerraballi"
+
+target_roles:
+  - Data Analyst
+  - Junior Data Analyst
+  - Data Scientist
+  - Junior Data Scientist
+  - Machine Learning Engineer
+  - ML Engineer
+  - AI Analyst
+
+skills:
+  programming:
+    - Python
+    - SQL
+
+  data_analysis:
+    - Pandas
+    - NumPy
+    - Data Wrangling
+    - Statistical Analysis
+
+  visualization:
+    - Power BI
+    - Matplotlib
+    - Seaborn
+
+  machine_learning:
+    - Machine Learning
+    - Regression
+    - Classification
+    - Clustering
+    - Feature Engineering
+    - Model Evaluation
+
+  nlp:
+    - NLP
+    - NLTK
+    - TF-IDF
+    - Sentiment Analysis
+
+  web_scraping:
+    - BeautifulSoup
+    - Selenium
+    - Scrapy
+    - Playwright
+
+  tools:
+    - Git
+    - GitHub
+    - Streamlit

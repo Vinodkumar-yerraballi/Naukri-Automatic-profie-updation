@@ -1,0 +1,27 @@
+application:
+  name: "Job Automation System"
+  version: "1.0.0"
+  environment: "development"
+
+
+paths:
+  data: "data"
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  applications: "data/applications"
+
+
+database:
+  name: "job_automation.db"
+
+
+logging:
+  level: "INFO"
+  file: "data/job_automation.log"
+
+
+profile:
+  file: "config/profile.yaml"
+
+job_preferences:
+  file: "config/job_preferences.yaml"
