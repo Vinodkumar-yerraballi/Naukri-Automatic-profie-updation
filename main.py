@@ -1,5 +1,4 @@
-from src.extraction.jb_extractor import JDExtractor
-from src.profile.profile_updater import ProfileManager
+from src.matching.experience_matcher import ExperienceMatcher
 from src.utils.logger import setup_logger
 
 
@@ -8,64 +7,49 @@ logger = setup_logger()
 
 def main():
 
-    logger.info("Starting JD extraction test")
+    logger.info("Starting experience matching test")
 
-    # Load candidate profile
-    profile_manager = ProfileManager(
-        "config/profile.yaml"
+    # Candidate's acceptable experience range
+    matcher = ExperienceMatcher(
+        candidate_min_experience=0,
+        candidate_max_experience=2
     )
 
-    profile_manager.load_profile()
+    test_jobs = [
+        "0-2 years",
+        "1-3 years",
+        "3-5 years",
+        "5+ years",
+        "2 years",
+        "1 year",
+        "Experience not specified"
+    ]
 
-    # Get candidate skills
-    candidate_skills = profile_manager.get_all_skills()
+    print("\n========== EXPERIENCE MATCHING ==========")
 
-    # Sample job description
-    job_description = """
-Data Analyst
+    for experience in test_jobs:
 
-ABC Technologies is looking for a Data Analyst.
+        result = matcher.get_match_result(
+            experience
+        )
 
-Requirements:
-- Python
-- SQL
-- Pandas
-- Power BI
-- Machine Learning
-- Statistics
+        print(
+            f"\nJob Requirement: {experience}"
+        )
 
-Experience:
-0-2 years
+        print(
+            f"Parsed Range: "
+            f"{result['job_min_experience']} - "
+            f"{result['job_max_experience']}"
+        )
 
-Location:
-Bangalore
-"""
+        print(
+            f"Match: {result['match']}"
+        )
 
-    # Create extractor
-    extractor = JDExtractor(job_description)
-
-    # Extract information
-    job = extractor.extract_all(candidate_skills)
-
-    print("\n========== JOB INFORMATION ==========")
-
-    print("\nTitle:")
-    print(job["title"])
-
-    print("\nCompany:")
-    print(job["company"])
-
-    print("\nLocation:")
-    print(job["location"])
-
-    print("\nExperience:")
-    print(job["experience"])
-
-    print("\nSkills:")
-    for skill in job["skills"]:
-        print("-", skill)
-
-    logger.info("JD extraction completed successfully")
+    logger.info(
+        "Experience matching completed successfully"
+    )
 
 
 if __name__ == "__main__":
