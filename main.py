@@ -1,55 +1,44 @@
-from src.matching.experience_matcher import ExperienceMatcher
-from src.utils.logger import setup_logger
-
-
-logger = setup_logger()
+from src.ingestion.naukri_search import NaukriSearch
 
 
 def main():
 
-    logger.info("Starting experience matching test")
-
-    # Candidate's acceptable experience range
-    matcher = ExperienceMatcher(
-        candidate_min_experience=0,
-        candidate_max_experience=2
-    )
-
-    test_jobs = [
-        "0-2 years",
-        "1-3 years",
-        "3-5 years",
-        "5+ years",
-        "2 years",
-        "1 year",
-        "Experience not specified"
+    roles = [
+        "Data Analyst",
+        "Data Scientist",
+        "AI Analyst"
     ]
 
-    print("\n========== EXPERIENCE MATCHING ==========")
+    locations = [
+        "Remote",
+        "Bangalore",
+        "Hyderabad"
+    ]
 
-    for experience in test_jobs:
+    work_modes = [
+        "Remote",
+        "Hybrid"
+    ]
 
-        result = matcher.get_match_result(
-            experience
-        )
-
-        print(
-            f"\nJob Requirement: {experience}"
-        )
-
-        print(
-            f"Parsed Range: "
-            f"{result['job_min_experience']} - "
-            f"{result['job_max_experience']}"
-        )
-
-        print(
-            f"Match: {result['match']}"
-        )
-
-    logger.info(
-        "Experience matching completed successfully"
+    naukri = NaukriSearch(
+        roles=roles,
+        locations=locations,
+        work_modes=work_modes
     )
+
+    print("Source:")
+    print(naukri.get_source_name())
+
+    print("\nSearch Queries:")
+
+    jobs = naukri.fetch_jobs()
+
+    for index, job in enumerate(jobs, start=1):
+
+        print(f"\n{index}.")
+        print("Role:", job["role"])
+        print("Location:", job["location"])
+        print("Work Modes:", job["work_mode"])
 
 
 if __name__ == "__main__":

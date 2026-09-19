@@ -1,5 +1,7 @@
 import re
 
+from src.extraction.skill_dictionary import JOB_SKILLS
+
 
 class JDExtractor:
     """
@@ -23,10 +25,23 @@ class JDExtractor:
         )
 
         if match:
-            minimum = match.group(1)
-            maximum = match.group(2)
+            minimum = int(match.group(1))
+            maximum = int(match.group(2))
 
             return f"{minimum}-{maximum} years"
+
+        plus_pattern = r"(\d+)\s*\+\s*(?:years?|yrs?)"
+
+        match = re.search(
+            plus_pattern,
+            self.job_description,
+            re.IGNORECASE
+        )
+
+        if match:
+            minimum = int(match.group(1))
+
+            return f"{minimum}+ years"
 
         return "Not specified"
 
@@ -48,16 +63,16 @@ class JDExtractor:
 
         return "Not specified"
 
-    def extract_skills(self, known_skills: list) -> list:
+    def extract_skills(self) -> list:
         """
-        Find known candidate skills mentioned in the job description.
+        Find job skills mentioned in the job description.
         """
 
         found_skills = []
 
         jd_lower = self.job_description.lower()
 
-        for skill in known_skills:
+        for skill in JOB_SKILLS:
 
             if skill.lower() in jd_lower:
                 found_skills.append(skill)
@@ -98,7 +113,7 @@ class JDExtractor:
 
         return "Not specified"
 
-    def extract_all(self, known_skills: list) -> dict:
+    def extract_all(self) -> dict:
         """
         Extract all available information from the job description.
         """
@@ -108,6 +123,6 @@ class JDExtractor:
             "company": self.extract_company(),
             "location": self.extract_location(),
             "experience": self.extract_experience(),
-            "skills": self.extract_skills(known_skills),
+            "skills": self.extract_skills(),
             "job_description": self.job_description
         }
