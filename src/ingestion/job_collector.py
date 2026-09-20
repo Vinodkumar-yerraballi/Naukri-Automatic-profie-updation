@@ -1,6 +1,7 @@
 from src.extraction.jd_extractor import JDExtractor
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
+from src.config.config_manager import ConfigManager
 
 class JobCollector:
     """
@@ -12,6 +13,8 @@ class JobCollector:
                 repository:JobRepository):
         self.evaluator=evaluator
         self.repository=repository
+        config_manager=ConfigManager()
+        self.minimum_score=(config_manager.get_minimum_score())
     def process_job(self,job_description:str,job_url:str,source:str ="TEST")-> dict:
         """
         Process a single job description.
@@ -32,7 +35,7 @@ class JobCollector:
         job["match_score"]=evaluation["final_score"]
         job["status"] = (
             "MATCHED"
-            if evaluation["final_score"] >=70
+            if evaluation["final_score"] >=self.minimum_score
             else "NOT_MATCHED"
         )
 

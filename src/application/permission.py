@@ -1,13 +1,23 @@
+from src.config.config_manager import ConfigManager
+
 class PermissionManager:
     """
     Controls whether a job is allowed to proceed
     to the application stage.
     """
-    def __init__(self,
-                minimum_score:float=85.0,
-                auto_apply:bool=False):
-        self.minimum_score=minimum_score
-        self.auto_apply=auto_apply
+    def __init__(self):
+        config_manger=ConfigManager()
+        self.minimum_score=(config_manger.get_minimum_score())
+        application_config=(config_manger.get_application_config())
+        self.auto_apply=application_config.get(
+            "auto_apply",False
+        )
+        self.application_mode=application_config.get(
+            "mode","review"
+        )
+        self.maximum_applications_per_day=application_config.get(
+            "maximum_applications_per_day",15
+        )
     def check_score(self,score:float)->bool:
         """
         Check whether the job meets the minimum score.

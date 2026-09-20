@@ -1,25 +1,23 @@
+from src.config.config_manager import ConfigManager
+
+
 class JobScorer:
     """
     Calculates the overall match score for a job.
     """
 
-    def __init__(
-        self,
-        role_weight: float = 25,
-        skill_weight: float = 30,
-        experience_weight: float = 20,
-        location_weight: float = 10,
-        education_weight: float = 5,
-        freshness_weight: float = 5,
-        salary_weight: float = 5
-    ):
-        self.role_weight = role_weight
-        self.skill_weight = skill_weight
-        self.experience_weight = experience_weight
-        self.location_weight = location_weight
-        self.education_weight = education_weight
-        self.freshness_weight = freshness_weight
-        self.salary_weight = salary_weight
+    def __init__(self):
+        config_manager = ConfigManager()
+
+        weights = config_manager.get_score_weights()
+
+        self.role_weight = weights["role_weight"]
+        self.skill_weight = weights["skill_weight"]
+        self.experience_weight = weights["experience_weight"]
+        self.location_weight = weights["location_weight"]
+        self.education_weight = weights["education_weight"]
+        self.freshness_weight = weights["freshness_weight"]
+        self.salary_weight = weights["salary_weight"]
 
     def calculate_score(
         self,
@@ -31,9 +29,6 @@ class JobScorer:
         freshness_match: float = 0,
         salary_match: float = 0
     ) -> float:
-        """
-        Calculate the weighted job match score.
-        """
 
         score = (
             role_match * self.role_weight / 100
@@ -48,9 +43,6 @@ class JobScorer:
         return round(score, 2)
 
     def get_score_category(self, score: float) -> str:
-        """
-        Convert the numerical score into a category.
-        """
 
         if score >= 90:
             return "Excellent Match"

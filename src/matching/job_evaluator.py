@@ -2,7 +2,7 @@ from src.matching.role_matcher import RoleMatcher
 from src.matching.skill_matcher import SkillMatcher
 from src.matching.experience_matcher import ExperienceMatcher
 from src.matching.location_matcher import LocationMatcher
-from src.matching.job_score import JobScorer
+from src.matching.job_scorer import JobScorer
 
 
 class JobEvaluator:

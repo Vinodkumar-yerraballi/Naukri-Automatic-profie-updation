@@ -13,6 +13,14 @@ touch  src/ingestion/__init__.py
 touch  src/ingestion/naukri_search.py
 touch  src/ingestion/job_sources.py
 
+mkdir -p src/config
+touch src/config/__init__.py
+touch src/config/config_manger.py
+
+mkdir -p src/pipelines
+touch scr/pipelines/__init__.py
+touch src/pipelines/job_pipeline.py
+
 mkdir -p src/extraction
 touch  src/extraction/__init__.py
 touch  src/extraction/jb_extractor.py
