@@ -1,44 +1,53 @@
-from src.ingestion.naukri_search import NaukriSearch
+from src.application.application_workflow import ApplicationWorkflow
+from src.application.permission import PermissionManager
+from src.application.application_tracker import ApplicationTracker
+from src.application.captcha_handler import CaptchaHandler
+from src.database.job_repository import JobRepository
+from src.notification.notifier import Notifier
 
 
 def main():
 
-    roles = [
-        "Data Analyst",
-        "Data Scientist",
-        "AI Analyst"
-    ]
+    print("\n========== APPLICATION WORKFLOW TEST ==========")
 
-    locations = [
-        "Remote",
-        "Bangalore",
-        "Hyderabad"
-    ]
-
-    work_modes = [
-        "Remote",
-        "Hybrid"
-    ]
-
-    naukri = NaukriSearch(
-        roles=roles,
-        locations=locations,
-        work_modes=work_modes
+    repository = JobRepository(
+        "data/job_automation.db"
     )
 
-    print("Source:")
-    print(naukri.get_source_name())
+    permission_manager = PermissionManager(
+        minimum_score=85,
+        auto_apply=False
+    )
 
-    print("\nSearch Queries:")
+    tracker = ApplicationTracker(
+        repository
+    )
 
-    jobs = naukri.fetch_jobs()
+    captcha_handler = CaptchaHandler()
 
-    for index, job in enumerate(jobs, start=1):
+    notifier = Notifier()
 
-        print(f"\n{index}.")
-        print("Role:", job["role"])
-        print("Location:", job["location"])
-        print("Work Modes:", job["work_mode"])
+    workflow = ApplicationWorkflow(
+        permission_manager=permission_manager,
+        application_tracker=tracker,
+        captcha_handler=captcha_handler,
+        notifier=notifier
+    )
+
+    test_job = {
+        "title": "Data Analyst",
+        "company": "ABC Technologies",
+        "job_url": "https://example.com/jobs/data-analyst-001",
+        "match_score": 92.0
+    }
+
+    result = workflow.process_job(
+        job=test_job,
+        page_text="Normal job application page"
+    )
+
+    print("\n========== WORKFLOW RESULT ==========")
+    print(result)
 
 
 if __name__ == "__main__":

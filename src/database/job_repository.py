@@ -72,6 +72,7 @@ class JobRepository:
         )
         connection.commit()
         connection.close()
+        return True
     def get_job_by_url(self,job_url:str):
         """
         Retrieve a job using its URL.
