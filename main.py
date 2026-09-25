@@ -1,159 +1,370 @@
-from src.profile.profile_updater import ProfileManager
+from src.ingestion.naukri_browser import NaukriBrowser
+from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
-from src.ingestion.job_collector import JobCollector
-
-from src.application.permission import PermissionManager
-from src.application.application_tracker import ApplicationTracker
-from src.application.captcha_handler import CaptchaHandler
-from src.notification.notifier import Notifier
-from src.application.application_workflow import ApplicationWorkflow
-
-from src.pipelines.job_pipeline import JobPipeline
+from src.config.config_manager import ConfigManager
+from src.profile.profile_updater import ProfileManager
 
 
 def main():
 
-    print("\n========== JOB PIPELINE CONFIG TEST ==========")
-
-    # 1. Load profile
-
-    profile_manager = ProfileManager(
-        "config/profile.yaml"
+    print(
+        "\n========== NAUKRI → PIPELINE TEST =========="
     )
 
-    candidate_skills = (
-        profile_manager.get_all_skills()
+    browser = NaukriBrowser(
+        headless=False
     )
 
-    target_roles = (
-        profile_manager.get_target_roles()
-    )
+    try:
 
-    # 2. Candidate preferences
+        # ==================================================
+        # 1. Start browser
+        # ==================================================
 
-    preferred_locations = [
-        "Remote",
-        "Bangalore",
-        "Hyderabad",
-        "Chennai"
-    ]
+        browser.start()
 
-    preferred_work_modes = [
-        "Remote",
-        "Hybrid"
-    ]
+        # ==================================================
+        # 2. Search Naukri
+        # ==================================================
 
-    # 3. Job evaluator
+        browser.search_jobs(
+            role="Data Analyst",
+            location="Bangalore"
+        )
 
-    evaluator = JobEvaluator(
-        candidate_skills=candidate_skills,
-        target_roles=target_roles,
-        preferred_locations=preferred_locations,
-        preferred_work_modes=preferred_work_modes,
-        candidate_min_experience=0,
-        candidate_max_experience=2
-    )
+        # ==================================================
+        # 3. Get job cards
+        # ==================================================
 
-    # 4. Repository
+        jobs = browser.get_job_cards()
 
-    repository = JobRepository(
-        "data/job_automation.db"
-    )
+        print(
+            f"\nJobs found: {len(jobs)}"
+        )
 
-    # 5. Job collector
+        if not jobs:
 
-    job_collector = JobCollector(
-        evaluator=evaluator,
-        repository=repository
-    )
+            print(
+                "No jobs found."
+            )
 
-    # 6. Application components
+            return
 
-    permission_manager = PermissionManager()
+        # ==================================================
+        # 4. Select ONE job
+        # ==================================================
 
-    tracker = ApplicationTracker(
-        repository
-    )
+        job = jobs[0]
 
-    captcha_handler = CaptchaHandler()
+        print(
+            "\n========== SELECTED JOB =========="
+        )
 
-    notifier = Notifier()
+        print("Title:", job["title"])
+        print("Company:", job["company"])
+        print("Location:", job["location"])
+        print("Experience:", job["experience"])
+        print("URL:", job["job_url"])
 
-    # 7. Application workflow
+        # ==================================================
+        # 5. Extract complete job details
+        # ==================================================
 
-    application_workflow = ApplicationWorkflow(
-        permission_manager=permission_manager,
-        application_tracker=tracker,
-        captcha_handler=captcha_handler,
-        notifier=notifier
-    )
+        print(
+            "\nExtracting complete job details..."
+        )
 
-    # 8. Pipeline
+        job = browser.extract_job_details(
+            job
+        )
 
-    pipeline = JobPipeline(
-        job_collector=job_collector,
-        application_workflow=application_workflow
-    )
+        if job.get(
+            "security_challenge",
+            False
+        ):
 
-    # 9. Test job
+            print(
+                "\nSecurity challenge detected."
+            )
 
-    job_description = """
-    Data Analyst
+            print(
+                "Manual action is required."
+            )
 
-    ABC Technologies is looking for a Data Analyst.
+            return
 
-    Location: Bangalore - Hybrid
+        # ==================================================
+        # 6. Make sure JD exists
+        # ==================================================
 
-    Experience: 0-2 years
+        job_description = job.get(
+            "job_description",
+            ""
+        )
 
-    Skills:
-    Python
-    SQL
-    Pandas
-    NumPy
-    Machine Learning
-    Power BI
-    NLP
-    NLTK
-    TF-IDF
-    Sentiment Analysis
-    Git
-    GitHub
-    """
+        if not job_description:
 
-    job_url = (
-        "https://example.com/jobs/"
-        "config-test-001"
-    )
+            print(
+                "\nJob description is empty."
+            )
 
-    # 10. Run pipeline
+            return
 
-    result = pipeline.process_job(
-        job_description=job_description,
-        job_url=job_url,
-        source="TEST",
-        page_text="Normal job application page"
-    )
+        # ==================================================
+        # 7. Load candidate profile
+        # ==================================================
 
-    # 11. Display result
+        profile_manager = ProfileManager(
+            "config/profile.yaml"
+        )
 
-    print("\n========== PIPELINE RESULT ==========")
+        profile_manager.load_profile()
 
-    print("\nMatch Score:")
-    print(result["job"]["match_score"])
+        candidate_skills = (
+            profile_manager.get_all_skills()
+        )
 
-    print("\nJob Status:")
-    print(result["job"]["status"])
+        target_roles = (
+            profile_manager.get_target_roles()
+        )
 
-    print("\nInserted:")
-    print(result["inserted"])
+        # ==================================================
+        # 8. Load search preferences
+        # ==================================================
 
-    print("\nWorkflow Status:")
-    print(result["workflow"]["status"])
+        config_manager = ConfigManager()
 
-    print("\nWorkflow Result:")
-    print(result["workflow"])
+        search_config = (
+            config_manager.get_job_search_config()
+        )
+
+        preferred_locations = (
+            search_config.get(
+                "locations",
+                []
+            )
+        )
+
+        preferred_work_modes = (
+            search_config.get(
+                "work_modes",
+                []
+            )
+        )
+
+        experience_config = (
+            search_config.get(
+                "experience",
+                {}
+            )
+        )
+
+        candidate_min_experience = (
+            experience_config.get(
+                "minimum",
+                0
+            )
+        )
+
+        candidate_max_experience = (
+            experience_config.get(
+                "maximum",
+                2
+            )
+        )
+
+        # ==================================================
+        # 9. Create JobEvaluator
+        # ==================================================
+
+        evaluator = JobEvaluator(
+
+            candidate_skills=candidate_skills,
+
+            target_roles=target_roles,
+
+            preferred_locations=preferred_locations,
+
+            preferred_work_modes=preferred_work_modes,
+
+            candidate_min_experience=(
+                candidate_min_experience
+            ),
+
+            candidate_max_experience=(
+                candidate_max_experience
+            )
+        )
+
+        # ==================================================
+        # 10. Create repository
+        # ==================================================
+
+        repository = JobRepository()
+
+        # ==================================================
+        # 11. Create JobCollector
+        # ==================================================
+
+        collector = JobCollector(
+
+            evaluator=evaluator,
+
+            repository=repository
+        )
+
+        # ==================================================
+        # 12. Send REAL Naukri JD
+        #     into JobCollector
+        # ==================================================
+
+        print(
+            "\nSending job to JobCollector..."
+        )
+
+        result = collector.process_job(
+
+            job_description=job_description,
+
+            job_url=job["job_url"],
+
+            source="Naukri"
+        )
+
+        # ==================================================
+        # 13. Display evaluation
+        # ==================================================
+
+        evaluation = result[
+            "evaluation"
+        ]
+
+        processed_job = result[
+            "job"
+        ]
+
+        print(
+            "\n========== EVALUATION =========="
+        )
+
+        print(
+            "\nJob Title:"
+        )
+
+        print(
+            processed_job["title"]
+        )
+
+        print(
+            "\nCompany:"
+        )
+
+        print(
+            processed_job["company"]
+        )
+
+        print(
+            "\nRole Match:"
+        )
+
+        print(
+            evaluation[
+                "role_match"
+            ]
+        )
+
+        print(
+            "\nSkill Match:"
+        )
+
+        print(
+            evaluation[
+                "skill_match"
+            ]
+        )
+
+        print(
+            "\nExperience Match:"
+        )
+
+        print(
+            evaluation[
+                "experience_match"
+            ]
+        )
+
+        print(
+            "\nLocation Match:"
+        )
+
+        print(
+            evaluation[
+                "location_match"
+            ]
+        )
+
+        print(
+            "\nFinal Match Score:"
+        )
+
+        print(
+            evaluation[
+                "final_score"
+            ]
+        )
+
+        print(
+            "\nScore Category:"
+        )
+
+        print(
+            evaluation[
+                "score_category"
+            ]
+        )
+
+        print(
+            "\nJob Status:"
+        )
+
+        print(
+            processed_job[
+                "status"
+            ]
+        )
+
+        print(
+            "\nInserted Into Database:"
+        )
+
+        print(
+            result[
+                "inserted"
+            ]
+        )
+
+    except Exception as error:
+
+        print(
+            "\n========== TEST FAILED =========="
+        )
+
+        print(
+            type(error).__name__
+        )
+
+        print(
+            error
+        )
+
+    finally:
+
+        browser.close()
+
+        print(
+            "\nBrowser closed."
+        )
 
 
 if __name__ == "__main__":
