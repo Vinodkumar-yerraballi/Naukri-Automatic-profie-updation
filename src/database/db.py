@@ -6,7 +6,7 @@ class JobDataBase:
     A class to manage the SQLite database for job data.
     """
 
-    def __init__(self, database_path: str = "data/job_data.db"):
+    def __init__(self, database_path: str = "data/job_automation.db"):
         self.database_path = Path(database_path)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
     def get_connection(self):

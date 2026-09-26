@@ -56,6 +56,7 @@ touch  src/utils/__init__.py
 touch  src/utils/logger.py
 touch  src/utils/helper.py
 
+mkdir -p test
 touch  requirements.txt
 touch  main.py
 touch  .env

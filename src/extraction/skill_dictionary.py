@@ -1,9 +1,12 @@
 JOB_SKILLS = [
+
     # Programming
     "Python",
-    "Java"
+    "R",
+    "Java",
+    "C++",
 
-    # Databases / SQL
+    # SQL / Databases
     "SQL",
     "MySQL",
     "PostgreSQL",
@@ -13,21 +16,23 @@ JOB_SKILLS = [
     # Data Analysis
     "Pandas",
     "NumPy",
-    "Excel",
-    "Power BI",
-    "Tableau",
-    "Matplotlib",
-    "Seaborn",
-
-    # Statistics
-    "Statistics",
+    "Data Wrangling",
+    "Data Visualization",
     "Statistical Analysis",
+    "Statistics",
     "Hypothesis Testing",
     "A/B Testing",
 
+    # Business Intelligence / Visualization
+    "Power BI",
+    "Tableau",
+    "Domo",
+    "Looker",
+    "Matplotlib",
+    "Seaborn",
+
     # Machine Learning
     "Machine Learning",
-    "Deep Learning",
     "Regression",
     "Classification",
     "Clustering",
@@ -41,13 +46,18 @@ JOB_SKILLS = [
     "SpaCy",
     "TF-IDF",
     "Sentiment Analysis",
-    "Transformers",
-    "HuggingFace",
 
     # Deep Learning
+    "Deep Learning",
     "TensorFlow",
     "PyTorch",
     "Keras",
+
+    # Data Engineering
+    "ETL",
+    "Data Engineering",
+    "Data Pipelines",
+    "Data Governance",
 
     # Big Data
     "Spark",
@@ -60,21 +70,22 @@ JOB_SKILLS = [
     "Azure",
     "GCP",
 
-    # DevOps / Tools
-    "Docker",
-    "Git",
-    "GitHub",
-
-    # Web / Data Collection
+    # Web Scraping
     "BeautifulSoup",
     "Selenium",
     "Scrapy",
     "Playwright",
 
-    # AI / LLM
-    "Generative AI",
-    "LLM",
+    # Development / Tools
+    "Git",
+    "GitHub",
+    "Docker",
+    "Streamlit",
+
+    # Generative AI
+    "Transformers",
+    "HuggingFace",
     "LangChain",
     "FAISS",
-    "RAG"
+    "RAG",
 ]

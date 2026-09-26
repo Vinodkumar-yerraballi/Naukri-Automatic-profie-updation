@@ -29,25 +29,16 @@ class JobCollector:
         job_metadata: dict = None
     ) -> dict:
 
-        # -----------------------------------------
-        # 1. Extract information from JD
-        # -----------------------------------------
-
+        # Extract information from JD
         extractor = JDExtractor(job_description)
 
         job = extractor.extract_all()
 
-        # -----------------------------------------
-        # 2. Add URL and source
-        # -----------------------------------------
-
+        # Add URL and source
         job["job_url"] = job_url
         job["source"] = source
 
-        # -----------------------------------------
-        # 3. Preserve browser-extracted metadata
-        # -----------------------------------------
-
+        # Preserve browser-extracted metadata
         if job_metadata:
 
             if job_metadata.get("title"):
@@ -72,35 +63,21 @@ class JobCollector:
                     job_metadata["education"]
                 )
 
-        # -----------------------------------------
-        # 4. Keep description compatible with DB
-        # -----------------------------------------
-
+        # Database-compatible description
         job["description"] = job.get(
             "job_description",
             ""
         )
 
-        # -----------------------------------------
-        # 5. Evaluate job
-        # -----------------------------------------
+        # Evaluate job
+        evaluation = self.evaluator.evaluate(job)
 
-        evaluation = self.evaluator.evaluate(
-            job
-        )
-
-        # -----------------------------------------
-        # 6. Add match score
-        # -----------------------------------------
-
+        # Add score
         job["match_score"] = (
             evaluation["final_score"]
         )
 
-        # -----------------------------------------
-        # 7. Determine status
-        # -----------------------------------------
-
+        # Determine status
         job["status"] = (
             "MATCHED"
             if evaluation["final_score"]
@@ -108,16 +85,24 @@ class JobCollector:
             else "NOT_MATCHED"
         )
 
-        # -----------------------------------------
-        # 8. Store in database
-        # -----------------------------------------
+        # Store job
+        existing_job = self.repository.job_exists(job["job_url"])
 
-        inserted = self.repository.add_job(
-            job
-        )
+        if existing_job:
+            updated = self.repository.update_job(job)
+
+            return {
+                "job": job,
+                "evaluation": evaluation,
+                "inserted": False,
+                "updated": updated
+            }
+
+        inserted = self.repository.add_job(job)
 
         return {
             "job": job,
             "evaluation": evaluation,
-            "inserted": inserted
+            "inserted": inserted,
+            "updated": False
         }

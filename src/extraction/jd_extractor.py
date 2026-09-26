@@ -1,34 +1,27 @@
 import re
-
 from src.extraction.skill_dictionary import JOB_SKILLS
 
 
 class JDExtractor:
-    """
-    A class to extract relevant information from job descriptions.
-    """
 
     def __init__(self, job_description: str):
         self.job_description = job_description
 
     def extract_experience(self) -> str:
-        """
-        Extract the required experience from the job description.
-        """
+        patterns = [
+            r"(\d+)\s*-\s*(\d+)\s*(?:years?|yrs?)",
+            r"(\d+)\s*to\s*(\d+)\s*(?:years?|yrs?)",
+        ]
 
-        experience_pattern = r"(\d+)\s*-\s*(\d+)\s*(?:years?|yrs?)"
+        for pattern in patterns:
+            match = re.search(
+                pattern,
+                self.job_description,
+                re.IGNORECASE
+            )
 
-        match = re.search(
-            experience_pattern,
-            self.job_description,
-            re.IGNORECASE
-        )
-
-        if match:
-            minimum = int(match.group(1))
-            maximum = int(match.group(2))
-
-            return f"{minimum}-{maximum} years"
+            if match:
+                return f"{int(match.group(1))}-{int(match.group(2))} years"
 
         plus_pattern = r"(\d+)\s*\+\s*(?:years?|yrs?)"
 
@@ -39,17 +32,11 @@ class JDExtractor:
         )
 
         if match:
-            minimum = int(match.group(1))
-
-            return f"{minimum}+ years"
+            return f"{int(match.group(1))}+ years"
 
         return "Not specified"
 
     def extract_location(self) -> str:
-        """
-        Extract the location from the job description.
-        """
-
         pattern = r"Location\s*:\s*(.+)"
 
         match = re.search(
@@ -65,23 +52,40 @@ class JDExtractor:
 
     def extract_skills(self) -> list:
         """
-        Find job skills mentioned in the job description.
+        Extract technical skills from the job description.
+
+        Uses word-boundary matching so that short/common terms
+        are not incorrectly matched inside other words.
         """
 
         found_skills = []
-
         jd_lower = self.job_description.lower()
 
         for skill in JOB_SKILLS:
 
-            if skill.lower() in jd_lower:
+            skill_lower = skill.lower().strip()
+
+            if not skill_lower:
+                continue
+
+            # Escape special regex characters such as
+            # +, ., #, etc.
+            escaped_skill = re.escape(skill_lower)
+
+            # Word-boundary matching
+            pattern = rf"(?<!\w){escaped_skill}(?!\w)"
+
+            if re.search(pattern, jd_lower):
                 found_skills.append(skill)
 
         return found_skills
 
     def extract_title(self) -> str:
         """
-        Extract the job title from the first non-empty line.
+        Extract the job title from the beginning of the JD.
+
+        The actual Naukri job title is normally supplied separately
+        through job_metadata, so this is only a fallback.
         """
 
         lines = [
@@ -90,16 +94,25 @@ class JDExtractor:
             if line.strip()
         ]
 
-        if lines:
-            return lines[0]
+        if not lines:
+            return "Not specified"
+
+        # Ignore generic JD headings
+        ignored_titles = {
+            "job description",
+            "job details",
+            "description",
+            "about the job",
+            "role description"
+        }
+
+        for line in lines:
+            if line.lower() not in ignored_titles:
+                return line
 
         return "Not specified"
 
     def extract_company(self) -> str:
-        """
-        Extract the company name from the job description.
-        """
-
         pattern = r"([A-Za-z0-9&., ]+)\s+is\s+looking\s+for"
 
         match = re.search(
@@ -114,10 +127,6 @@ class JDExtractor:
         return "Not specified"
 
     def extract_all(self) -> dict:
-        """
-        Extract all available information from the job description.
-        """
-
         return {
             "title": self.extract_title(),
             "company": self.extract_company(),

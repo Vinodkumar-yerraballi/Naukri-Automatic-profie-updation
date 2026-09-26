@@ -1,4 +1,4 @@
-from src.ingestion.naukri_browser import NaukriBrowser
+﻿from src.ingestion.naukri_browser import NaukriBrowser
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
@@ -8,9 +8,7 @@ from src.profile.profile_updater import ProfileManager
 
 def main():
 
-    print(
-        "\n========== NAUKRI → PIPELINE TEST =========="
-    )
+    print("\n========== NAUKRI -> PIPELINE TEST ==========")
 
     browser = NaukriBrowser(
         headless=False
@@ -39,80 +37,24 @@ def main():
 
         jobs = browser.get_job_cards()
 
-        print(
-            f"\nJobs found: {len(jobs)}"
-        )
+        print(f"\nJobs found: {len(jobs)}")
 
         if not jobs:
-
-            print(
-                "No jobs found."
-            )
-
+            print("No jobs found.")
             return
 
         # ==================================================
-        # 4. Select ONE job
+        # 4. Select first 5 jobs
         # ==================================================
 
-        job = jobs[0]
+        jobs_to_process = jobs[:3]
 
         print(
-            "\n========== SELECTED JOB =========="
+            f"\nProcessing {len(jobs_to_process)} jobs..."
         )
 
-        print("Title:", job["title"])
-        print("Company:", job["company"])
-        print("Location:", job["location"])
-        print("Experience:", job["experience"])
-        print("URL:", job["job_url"])
-
         # ==================================================
-        # 5. Extract complete job details
-        # ==================================================
-
-        print(
-            "\nExtracting complete job details..."
-        )
-
-        job = browser.extract_job_details(
-            job
-        )
-
-        if job.get(
-            "security_challenge",
-            False
-        ):
-
-            print(
-                "\nSecurity challenge detected."
-            )
-
-            print(
-                "Manual action is required."
-            )
-
-            return
-
-        # ==================================================
-        # 6. Make sure JD exists
-        # ==================================================
-
-        job_description = job.get(
-            "job_description",
-            ""
-        )
-
-        if not job_description:
-
-            print(
-                "\nJob description is empty."
-            )
-
-            return
-
-        # ==================================================
-        # 7. Load candidate profile
+        # 5. Load candidate profile
         # ==================================================
 
         profile_manager = ProfileManager(
@@ -130,7 +72,7 @@ def main():
         )
 
         # ==================================================
-        # 8. Load search preferences
+        # 6. Load search preferences
         # ==================================================
 
         config_manager = ConfigManager()
@@ -175,173 +117,296 @@ def main():
         )
 
         # ==================================================
-        # 9. Create JobEvaluator
+        # 7. Create JobEvaluator
         # ==================================================
 
         evaluator = JobEvaluator(
-
             candidate_skills=candidate_skills,
-
             target_roles=target_roles,
-
             preferred_locations=preferred_locations,
-
             preferred_work_modes=preferred_work_modes,
-
             candidate_min_experience=(
                 candidate_min_experience
             ),
-
             candidate_max_experience=(
                 candidate_max_experience
             )
         )
 
         # ==================================================
-        # 10. Create repository
+        # 8. Create repository
         # ==================================================
 
         repository = JobRepository()
 
         # ==================================================
-        # 11. Create JobCollector
+        # 9. Create JobCollector
         # ==================================================
 
         collector = JobCollector(
-
             evaluator=evaluator,
-
             repository=repository
         )
 
         # ==================================================
-        # 12. Send REAL Naukri JD
-        #     into JobCollector
+        # 10. Process each job
+        # ==================================================
+
+        for index, job in enumerate(
+            jobs_to_process,
+            start=1
+        ):
+
+            print(
+                "\n"
+                + "=" * 60
+            )
+
+            print(
+                f"JOB {index} OF "
+                f"{len(jobs_to_process)}"
+            )
+
+            print(
+                "=" * 60
+            )
+
+            print(
+                "\nTitle:",
+                job.get("title", "")
+            )
+
+            print(
+                "Company:",
+                job.get("company", "")
+            )
+
+            print(
+                "Location:",
+                job.get("location", "")
+            )
+
+            print(
+                "Experience:",
+                job.get("experience", "")
+            )
+
+            print(
+                "URL:",
+                job.get("job_url", "")
+            )
+
+            # ==================================================
+            # 11. Extract complete job details
+            # ==================================================
+
+            print(
+                "\nExtracting complete job details..."
+            )
+
+            job = browser.extract_job_details(
+                job
+            )
+            print("\n========== EXTRACTED JOB DESCRIPTION ==========")
+            print(job.get("job_description", "")[:5000])
+            print("========== END JOB DESCRIPTION ==========")
+
+            # ==================================================
+            # 12. Security challenge check
+            # ==================================================
+
+            if job.get(
+                "security_challenge",
+                False
+            ):
+
+                print(
+                    "\nSecurity challenge detected."
+                )
+
+                print(
+                    "Manual action is required."
+                )
+
+                print(
+                    "Stopping pipeline."
+                )
+
+                return
+
+            # ==================================================
+            # 13. Make sure JD exists
+            # ==================================================
+
+            job_description = job.get(
+                "job_description",
+                ""
+            )
+
+            if not job_description:
+
+                print(
+                    "\nJob description is empty."
+                )
+
+                print(
+                    "Skipping this job."
+                )
+
+                continue
+
+            # ==================================================
+            # 14. Send job to JobCollector
+            # ==================================================
+
+            print(
+                "\nSending job to JobCollector..."
+            )
+
+            result = collector.process_job(
+                job_description=job_description,
+                job_url=job["job_url"],
+                source="Naukri",
+                job_metadata=job
+            )
+
+            # ==================================================
+            # 15. Get evaluation
+            # ==================================================
+
+            evaluation = result[
+                "evaluation"
+            ]
+
+            processed_job = result[
+                "job"
+            ]
+
+            # ==================================================
+            # 16. Display evaluation
+            # ==================================================
+
+            print(
+                "\n---------- EVALUATION ----------"
+            )
+
+            print(
+                "\nJob Title:"
+            )
+
+            print(
+                processed_job["title"]
+            )
+
+            print(
+                "\nCompany:"
+            )
+
+            print(
+                processed_job["company"]
+            )
+
+            print(
+                "\nRole Match:"
+            )
+
+            print(
+                evaluation[
+                    "role_match"
+                ]
+            )
+
+            print(
+                "\nSkill Match:"
+            )
+
+            print(
+                evaluation[
+                    "skill_match"
+                ]
+            )
+
+            print(
+                "\nExperience Match:"
+            )
+
+            print(
+                evaluation[
+                    "experience_match"
+                ]
+            )
+
+            print(
+                "\nLocation Match:"
+            )
+
+            print(
+                evaluation[
+                    "location_match"
+                ]
+            )
+
+            print(
+                "\nFinal Match Score:"
+            )
+
+            print(
+                evaluation[
+                    "final_score"
+                ]
+            )
+
+            print(
+                "\nScore Category:"
+            )
+
+            print(
+                evaluation[
+                    "score_category"
+                ]
+            )
+
+            print(
+                "\nJob Status:"
+            )
+
+            print(
+                processed_job[
+                    "status"
+                ]
+            )
+
+            print(
+                "\nInserted Into Database:"
+            )
+
+            print(
+                result[
+                    "inserted"
+                ]
+            )
+            print(
+                "\nupdated in Database"
+            )
+            print(
+                result["updated"]
+            )
+
+        # ==================================================
+        # 17. Processing completed
         # ==================================================
 
         print(
-            "\nSending job to JobCollector..."
-        )
-
-        result = collector.process_job(
-
-            job_description=job_description,
-
-            job_url=job["job_url"],
-
-            source="Naukri"
-        )
-
-        # ==================================================
-        # 13. Display evaluation
-        # ==================================================
-
-        evaluation = result[
-            "evaluation"
-        ]
-
-        processed_job = result[
-            "job"
-        ]
-
-        print(
-            "\n========== EVALUATION =========="
+            "\n"
+            + "=" * 60
         )
 
         print(
-            "\nJob Title:"
+            "20-JOB PIPELINE TEST COMPLETED"
         )
 
         print(
-            processed_job["title"]
-        )
-
-        print(
-            "\nCompany:"
-        )
-
-        print(
-            processed_job["company"]
-        )
-
-        print(
-            "\nRole Match:"
-        )
-
-        print(
-            evaluation[
-                "role_match"
-            ]
-        )
-
-        print(
-            "\nSkill Match:"
-        )
-
-        print(
-            evaluation[
-                "skill_match"
-            ]
-        )
-
-        print(
-            "\nExperience Match:"
-        )
-
-        print(
-            evaluation[
-                "experience_match"
-            ]
-        )
-
-        print(
-            "\nLocation Match:"
-        )
-
-        print(
-            evaluation[
-                "location_match"
-            ]
-        )
-
-        print(
-            "\nFinal Match Score:"
-        )
-
-        print(
-            evaluation[
-                "final_score"
-            ]
-        )
-
-        print(
-            "\nScore Category:"
-        )
-
-        print(
-            evaluation[
-                "score_category"
-            ]
-        )
-
-        print(
-            "\nJob Status:"
-        )
-
-        print(
-            processed_job[
-                "status"
-            ]
-        )
-
-        print(
-            "\nInserted Into Database:"
-        )
-
-        print(
-            result[
-                "inserted"
-            ]
+            "=" * 60
         )
 
     except Exception as error:

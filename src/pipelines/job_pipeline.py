@@ -37,6 +37,7 @@ class JobPipeline:
             "job":job,
             "evaluation":collected_job["evaluation"],
             "inserted":collected_job["inserted"],
+            "updated":collected_job["updated"],
             "workflow":workflow_result
         }
 

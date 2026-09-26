@@ -147,4 +147,95 @@ class JobRepository:
         jobs=cursor.fetchall()
         connection.close()
         return [dict(job) for job in jobs]
+    def get_all_jobs(self):
+        """
+        Return all jobs stored in the database.
+        """
 
+        connection = self.database.get_connection()
+
+        connection.row_factory = __import__(
+            "sqlite3"
+        ).Row
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM jobs
+            ORDER BY id DESC
+            """
+        )
+
+        jobs = cursor.fetchall()
+
+        connection.close()
+
+        return [dict(job) for job in jobs]
+
+    def get_job_count(self) -> int:
+        """
+        Return the total number of jobs stored in the database.
+        """
+
+        connection = self.database.get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM jobs"
+        )
+
+        count = cursor.fetchone()[0]
+
+        connection.close()
+
+        return count
+    def update_job(self, job: dict) -> bool:
+        """
+        Update an existing job using its unique URL.
+
+        Returns:
+            True  -> job updated
+            False -> job does not exist
+        """
+
+        if not self.job_exists(job["job_url"]):
+            return False
+
+        connection = self.database.get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET
+                title = ?,
+                company = ?,
+                location = ?,
+                experience = ?,
+                description = ?,
+                skills = ?,
+                match_score = ?,
+                status = ?,
+                source = ?
+            WHERE job_url = ?
+            """,
+            (
+                job.get("title"),
+                job.get("company"),
+                job.get("location"),
+                job.get("experience"),
+                job.get("description"),
+                ", ".join(job.get("skills", [])),
+                job.get("match_score"),
+                job.get("status", "FOUND"),
+                job.get("source"),
+                job.get("job_url")
+            )
+        )
+
+        connection.commit()
+        connection.close()
+
+        return True

@@ -74,6 +74,7 @@ class NaukriBrowser:
                 "https://www.naukri.com/"
                 f"{role_query}-jobs-in-{location_query}"
             )
+
         else:
             url = (
                 "https://www.naukri.com/"
@@ -123,6 +124,7 @@ class NaukriBrowser:
             return ""
 
         return self.page.locator("body").inner_text()
+
     def detect_security_challenge(self) -> bool:
         """
         Detect common CAPTCHA/security verification pages.
@@ -149,6 +151,7 @@ class NaukriBrowser:
                 return True
 
         return False
+
     def get_job_cards(self) -> list:
         """
         Extract visible job cards from the current search page.
@@ -160,7 +163,7 @@ class NaukriBrowser:
             )
 
         # Wait for the page to render.
-        self.page.wait_for_timeout(3000)
+        self.page.wait_for_timeout(7000)
 
         # Detect security challenges first.
         if self.detect_security_challenge():
@@ -193,18 +196,43 @@ class NaukriBrowser:
                         f"Found {count} elements using selector: "
                         f"{selector}"
                     )
+                    print(f"\nDEBUG: Processing {count} cards using selector: {selector}")
 
                     for index in range(count):
 
-                        card = cards.nth(index)
-
                         try:
+
+                            card = cards.nth(index)
+
+                            # ------------------------------------------------
+                            # TEMPORARY DEBUG
+                            # Print complete text of each job card.
+                            # This will help us identify the current
+                            # Naukri "posted" field.
+                            # ------------------------------------------------
+
+
+
+                            title_locator = card.locator("a.title")
+                            company_locator = card.locator("a.comp-name")
+                            location_locator = card.locator("span.locWdth")
+                            experience_locator = card.locator("span.expwdth")
+                            posted_locator = card.locator("span.job-post-day")
+
+                            # ------------------------------------------------
+                            # Job fields
+                            # ------------------------------------------------
 
                             title = ""
                             company = ""
                             location = ""
                             experience = ""
+                            posted = ""
                             job_url = ""
+
+                            # ------------------------------------------------
+                            # Title
+                            # ------------------------------------------------
 
                             title_locator = card.locator(
                                 "a.title"
@@ -225,32 +253,69 @@ class NaukriBrowser:
                                 if href:
                                     job_url = href
 
-                            company_locator = card.locator(
-                                "a.comp-name"
-                            )
+                            # ------------------------------------------------
+                            # Company
+                            # ------------------------------------------------
+
+                            # ------------------------------------------------
+# Company
+# ------------------------------------------------
+
+                            company_locator = card.locator("a.comp-name")
 
                             if company_locator.count() > 0:
-                                company = (
-                                    company_locator.first.inner_text()
-                                )
+                                company = company_locator.first.inner_text().strip()
 
-                            location_locator = card.locator(
-                                "span.locWdth"
-                            )
+                                if "synapse" in company.lower():
+                                    print("\n========== SYNAPSE CARD HTML ==========")
+                                    print(card.evaluate("(element) => element.outerHTML"))
+                                    print("========== END SYNAPSE CARD HTML ==========\n")
+
+                            # ------------------------------------------------
+                            # Location
+                            # ------------------------------------------------
+                            location_locator = card.locator("span.locWdth")
 
                             if location_locator.count() > 0:
-                                location = (
-                                    location_locator.first.inner_text()
-                                )
+                                location = location_locator.first.inner_text().strip()
 
-                            experience_locator = card.locator(
-                                "span.expwdth"
-                            )
+                            if not location:
+                                location_locator = card.locator("span.locWdth2")
+
+                                if location_locator.count() > 0:
+                                    location = location_locator.first.inner_text().strip()
+
+                            if not location:
+                                location = card.get_attribute("data-location") or ""
+                            # ------------------------------------------------
+                            # Experience
+                            # ------------------------------------------------
+
+                            experience_locator = card.locator("span.expwdth")
 
                             if experience_locator.count() > 0:
-                                experience = (
-                                    experience_locator.first.inner_text()
+                                experience = experience_locator.first.inner_text().strip()
+
+                            if not experience:
+                                experience = card.get_attribute("data-experience") or ""
+
+                            # ------------------------------------------------
+                            # Posted time/date
+                            # ------------------------------------------------
+
+                            posted_locator = card.locator(
+                                "span.job-post-day"
+                            )
+
+                            if posted_locator.count() > 0:
+
+                                posted = (
+                                    posted_locator.first.inner_text()
                                 )
+
+                            # ------------------------------------------------
+                            # Save job
+                            # ------------------------------------------------
 
                             if title or job_url:
 
@@ -260,6 +325,7 @@ class NaukriBrowser:
                                         "company": company.strip(),
                                         "location": location.strip(),
                                         "experience": experience.strip(),
+                                        "posted": posted.strip(),
                                         "job_url": job_url,
                                         "source": "Naukri"
                                     }
@@ -284,6 +350,7 @@ class NaukriBrowser:
                 print(error)
 
         return job_cards
+
     def get_job_description(self, job_url: str) -> str:
         """
         Open an individual Naukri job page and extract
@@ -302,6 +369,7 @@ class NaukriBrowser:
         print(job_url)
 
         try:
+
             self.page.goto(
                 job_url,
                 wait_until="domcontentloaded",
@@ -318,12 +386,15 @@ class NaukriBrowser:
 
             # Security check
             if self.detect_security_challenge():
+
                 print(
                     "\nSecurity challenge detected."
                 )
+
                 print(
                     "Manual action is required."
                 )
+
                 return ""
 
             # Get all visible page text.
@@ -405,6 +476,7 @@ class NaukriBrowser:
             )
 
             return ""
+
     def debug_job_page(self) -> dict:
         """
         Collect basic information about the current job page
@@ -426,11 +498,13 @@ class NaukriBrowser:
         }
 
         try:
+
             body_text = self.page.locator(
                 "body"
             ).inner_text()
 
             result["body_text_length"] = len(body_text)
+
             result["body_text_preview"] = body_text[:5000]
 
             result["div_count"] = self.page.locator(
@@ -446,6 +520,7 @@ class NaukriBrowser:
             result["error"] = str(error)
 
         return result
+
     def extract_job_details(
         self,
         job: dict
@@ -594,21 +669,31 @@ class NaukriBrowser:
 
             if not job.get("experience"):
 
-                experience_patterns = [
-                    "0 - 1 years",
-                    "0 - 2 years",
-                    "1 - 2 years",
-                    "1 - 3 years",
-                    "2 - 3 years"
-                ]
+                import re
 
-                for pattern in experience_patterns:
+                experience_pattern = (
+                    r"\b(\d+)\s*[-–]\s*(\d+)\s*(?:years?|yrs?)\b"
+                    r"|\b(\d+)\s*\+\s*(?:years?|yrs?)\b"
+                )
 
-                    if pattern.lower() in page_text.lower():
+                experience_match = re.search(
+                    experience_pattern,
+                    page_text,
+                    re.IGNORECASE
+                )
 
-                        job["experience"] = pattern
+                if experience_match:
 
-                        break
+                    if experience_match.group(1) and experience_match.group(2):
+                        job["experience"] = (
+                            f"{experience_match.group(1)}-"
+                            f"{experience_match.group(2)} years"
+                        )
+
+                    elif experience_match.group(3):
+                        job["experience"] = (
+                            f"{experience_match.group(3)}+ years"
+                        )
 
             # -----------------------------------------
             # Return normalized job
@@ -630,15 +715,20 @@ class NaukriBrowser:
             job["extraction_error"] = str(error)
 
             return job
+
     def close(self):
         """Close browser and Playwright."""
 
         if self.browser:
+
             self.browser.close()
+
             self.browser = None
 
         if self.playwright:
+
             self.playwright.stop()
+
             self.playwright = None
 
         self.page = None
