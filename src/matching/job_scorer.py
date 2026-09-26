@@ -17,62 +17,51 @@ class JobScorer:
         self.salary_weight = weights["salary_weight"]
 
     def calculate_score(
-        self,
-        role_match,
-        skill_match,
-        experience_match,
-        location_match=0,
-        education_match=None,
-        freshness_match=None,
-        salary_match=None
-    ):
-        """
-        Calculate the weighted job match score.
+            self,
+            role_match,
+            skill_match=None,
+            experience_match=0,
+            location_match=0,
+            education_match=None,
+            freshness_match=None,
+            salary_match=None
+        ):
+            components = []
 
-        Each match value should be between 0 and 100.
+            if role_match is not None:
+                components.append((role_match, self.role_weight))
 
-        The score is normalized using only the components that
-        are currently available, so unused components do not
-        artificially reduce the maximum score.
-        """
+            if skill_match is not None:
+                components.append((skill_match, self.skill_weight))
 
-        components = [
-            (role_match, self.role_weight),
-            (skill_match, self.skill_weight),
-            (experience_match, self.experience_weight),
-            (location_match, self.location_weight),
-        ]
+            if experience_match is not None:
+                components.append((experience_match, self.experience_weight))
 
-        # Add optional components only when they are actually
-        # provided by the evaluator.
-        if education_match is not None:
-            components.append(
-                (education_match, self.education_weight)
+            if location_match is not None:
+                components.append((location_match, self.location_weight))
+
+            if education_match is not None:
+                components.append((education_match, self.education_weight))
+
+            if freshness_match is not None:
+                components.append((freshness_match, self.freshness_weight))
+
+            if salary_match is not None:
+                components.append((salary_match, self.salary_weight))
+
+            total_weight = sum(weight for _, weight in components)
+
+            if total_weight == 0:
+                return 0.0
+
+            weighted_score = sum(
+                match_value * weight
+                for match_value, weight in components
             )
 
-        if freshness_match is not None:
-            components.append(
-                (freshness_match, self.freshness_weight)
-            )
+            score = weighted_score / total_weight
 
-        if salary_match is not None:
-            components.append(
-                (salary_match, self.salary_weight)
-            )
-
-        total_weight = sum(weight for _, weight in components)
-
-        if total_weight == 0:
-            return 0.0
-
-        weighted_score = sum(
-            match_value * weight
-            for match_value, weight in components
-        )
-
-        score = weighted_score / total_weight
-
-        return round(score, 2)
+            return round(score, 2)
 
     def get_score_category(self, score: float) -> str:
 

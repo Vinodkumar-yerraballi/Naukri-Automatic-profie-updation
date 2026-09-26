@@ -334,9 +334,12 @@ class NaukriBrowser:
                         except Exception as error:
 
                             print(
-                                f"Could not extract job card "
-                                f"{index}: {error}"
+                            f"\n========== CARD EXTRACTION ERROR =========="
                             )
+                            print(f"Card index: {index}")
+                            print(f"Error type: {type(error).__name__}")
+                            print(f"Error: {error}")
+                            print("============================================")
 
                     if job_cards:
                         break

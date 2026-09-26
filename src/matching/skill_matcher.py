@@ -34,7 +34,7 @@ class SkillMatcher:
         that match the candidate's skills.
         """
         if not job_skills:
-            return 0.0
+            return None
         matched_skills=self.find_matched_skills(job_skills)
         percentage=(len(matched_skills)/len(job_skills))*100
         return round(percentage,2)

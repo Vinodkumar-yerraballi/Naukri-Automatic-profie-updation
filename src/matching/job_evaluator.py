@@ -57,18 +57,22 @@ class JobEvaluator:
         location_score= (100 if location_result["match"] else 0)
 
         skill_score= skill_result["match_percentage"]
+        if skill_score is None:
+            final_score=self.job_score.calculate_score(
+                role_match=role_score,
+                location_match=location_score,
+                experience_match=experience_score
+                
+            )
+        else:
+            final_score=self.job_score.calculate_score(
+                role_match=role_score,
+                skill_match=skill_score,
+                location_match=location_score,
+                experience_match=experience_score
+            )
 
 
-        # Calculate final score
-
-        final_score= self.job_score.calculate_score(
-            role_match=role_score,
-            skill_match=skill_score,
-            location_match=location_score,
-            experience_match=experience_score
-
-
-        )
 
         return {
             "job_title": job_title,
