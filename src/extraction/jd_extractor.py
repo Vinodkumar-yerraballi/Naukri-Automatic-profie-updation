@@ -1,4 +1,5 @@
 import re
+
 from src.extraction.skill_dictionary import JOB_SKILLS
 
 
@@ -6,6 +7,36 @@ class JDExtractor:
 
     def __init__(self, job_description: str):
         self.job_description = job_description
+
+    def extract_title(self) -> str:
+        lines = self.job_description.splitlines()
+
+        for line in lines:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.lower() == "job description":
+                continue
+
+            return line
+
+        return "Not specified"
+
+    def extract_company(self) -> str:
+        title = self.extract_title()
+
+        match = re.search(
+            r"^(.+?)\s+is\s+looking\s+for\s+",
+            title,
+            re.IGNORECASE
+        )
+
+        if match:
+            return match.group(1).strip()
+
+        return "Not specified"
 
     def extract_experience(self) -> str:
         patterns = [
@@ -50,34 +81,28 @@ class JDExtractor:
 
         return "Not specified"
 
-    def extract_skills(self) -> list:
-        """
-        Extract skills from the job description.
+    def extract_skills(self) -> dict:
+        from src.extraction.skill_dictionary import (
+            TECHNICAL_SKILLS,
+            GENERAL_REQUIREMENTS
+        )
 
-        Normal JD text:
-            Uses strict whole-word matching.
+        key_technical_skills = []
+        description_technical_skills = []
 
-        Naukri Key Skills section:
-            Naukri sometimes concatenates skills together, for example:
-
-            project managementdata analyticsoracledata analysis
-            data managementsqldata cleansingexceldata qualitytableauspark
-
-            Therefore, the Key Skills section is handled separately.
-        """
-
-        found_skills = []
+        key_general_requirements = []
+        description_general_requirements = []
 
         jd_lower = self.job_description.lower()
 
-        # ---------------------------------------------------------
-        # 1. Extract the Naukri "Key Skills" section
-        # ---------------------------------------------------------
+        # ============================================================
+        # 1. Extract Naukri Key Skills section
+        # ============================================================
 
         key_skills_text = ""
 
         key_skills_match = re.search(
-            r"Key Skills\s*(.*?)(?=\n\s*$|\Z)",
+            r"Key Skills\s*(.*?)(?=\n\s*(?:Role:|Industry Type:|Department:|Employment Type:|Role Category:|Education|UG:|PG:)|\Z)",
             self.job_description,
             re.IGNORECASE | re.DOTALL
         )
@@ -85,9 +110,9 @@ class JDExtractor:
         if key_skills_match:
             key_skills_text = key_skills_match.group(1).strip().lower()
 
-        # ---------------------------------------------------------
-        # 2. Remove Key Skills section from normal JD text
-        # ---------------------------------------------------------
+        # ============================================================
+        # 2. Remove Key Skills section from normal JD
+        # ============================================================
 
         normal_jd_text = jd_lower
 
@@ -97,11 +122,11 @@ class JDExtractor:
                 + jd_lower[key_skills_match.end():]
             )
 
-        # ---------------------------------------------------------
-        # 3. Check skills in normal JD text
-        # ---------------------------------------------------------
+        # ============================================================
+        # 3. Find technical skills in normal JD
+        # ============================================================
 
-        for skill in JOB_SKILLS:
+        for skill in TECHNICAL_SKILLS:
 
             skill_clean = skill.strip()
 
@@ -110,31 +135,44 @@ class JDExtractor:
 
             skill_lower = skill_clean.lower()
 
-            # Special handling for single-character skills
-            # such as "R".
-            if len(skill_lower) == 1:
-                if skill_lower == "r":
-                    pattern = r"(?<![\w+#])r(?![\w+#])"
-
-                    if re.search(pattern, normal_jd_text):
-                        found_skills.append(skill_clean)
-
+            if len(skill_lower) <= 2:
                 continue
 
-            escaped_skill = re.escape(skill_lower)
-
-            pattern = rf"(?<!\w){escaped_skill}(?!\w)"
+            pattern = rf"(?<!\w){re.escape(skill_lower)}(?!\w)"
 
             if re.search(pattern, normal_jd_text):
-                found_skills.append(skill_clean)
+                description_technical_skills.append(skill_clean)
 
-        # ---------------------------------------------------------
-        # 4. Check skills inside Naukri Key Skills section
-        # ---------------------------------------------------------
+        # ============================================================
+        # 4. Find general requirements in normal JD
+        # ============================================================
+
+        for requirement in GENERAL_REQUIREMENTS:
+
+            requirement_clean = requirement.strip()
+
+            if not requirement_clean:
+                continue
+
+            requirement_lower = requirement_clean.lower()
+
+            if len(requirement_lower) <= 2:
+                continue
+
+            pattern = rf"(?<!\w){re.escape(requirement_lower)}(?!\w)"
+
+            if re.search(pattern, normal_jd_text):
+                description_general_requirements.append(
+                    requirement_clean
+                )
+
+        # ============================================================
+        # 5. Find technical skills in Naukri Key Skills
+        # ============================================================
 
         if key_skills_text:
 
-            for skill in JOB_SKILLS:
+            for skill in TECHNICAL_SKILLS:
 
                 skill_clean = skill.strip()
 
@@ -143,78 +181,88 @@ class JDExtractor:
 
                 skill_lower = skill_clean.lower()
 
-                # Do NOT search single-character skills such as R
-                # inside concatenated Key Skills text.
-                #
-                # Example:
-                # "data analytics" contains many letter "r"s,
-                # but that does NOT mean the job requires R.
-                if len(skill_lower) == 1:
+                if len(skill_lower) <= 2:
                     continue
 
                 if skill_lower in key_skills_text:
-                    found_skills.append(skill_clean)
+                    key_technical_skills.append(skill_clean)
 
-        # ---------------------------------------------------------
-        # 5. Remove duplicate skills while preserving order
-        # ---------------------------------------------------------
+        # ============================================================
+        # 6. Find general requirements in Naukri Key Skills
+        # ============================================================
 
-        unique_skills = []
+        if key_skills_text:
 
-        for skill in found_skills:
-            if skill not in unique_skills:
-                unique_skills.append(skill)
+            for requirement in GENERAL_REQUIREMENTS:
 
-        return unique_skills
+                requirement_clean = requirement.strip()
 
-    def extract_title(self) -> str:
+                if not requirement_clean:
+                    continue
 
-        lines = [
-            line.strip()
-            for line in self.job_description.splitlines()
-            if line.strip()
-        ]
+                requirement_lower = requirement_clean.lower()
 
-        if not lines:
-            return "Not specified"
+                if len(requirement_lower) <= 2:
+                    continue
 
-        ignored_titles = {
-            "job description",
-            "job details",
-            "description",
-            "about the job",
-            "role description"
-        }
+                if requirement_lower in key_skills_text:
+                    key_general_requirements.append(
+                        requirement_clean
+                    )
 
-        for line in lines:
+        # ============================================================
+        # 7. Remove duplicates
+        # ============================================================
 
-            if line.lower() not in ignored_titles:
-                return line
-
-        return "Not specified"
-
-    def extract_company(self) -> str:
-
-        pattern = r"([A-Za-z0-9&., ]+)\s+is\s+looking\s+for"
-
-        match = re.search(
-            pattern,
-            self.job_description,
-            re.IGNORECASE
+        key_technical_skills = list(
+            dict.fromkeys(key_technical_skills)
         )
 
-        if match:
-            return match.group(1).strip()
+        description_technical_skills = list(
+            dict.fromkeys(description_technical_skills)
+        )
 
-        return "Not specified"
+        key_general_requirements = list(
+            dict.fromkeys(key_general_requirements)
+        )
+
+        description_general_requirements = list(
+            dict.fromkeys(description_general_requirements)
+        )
+
+        # ============================================================
+        # 8. Return separated results
+        # ============================================================
+
+        return {
+            "key_technical_skills": key_technical_skills,
+            "description_technical_skills": description_technical_skills,
+
+            # Keep this for compatibility with existing project code
+            "technical_skills": key_technical_skills,
+
+            "key_general_requirements": key_general_requirements,
+            "description_general_requirements":
+                description_general_requirements,
+
+            # Keep this for compatibility with existing project code
+            "general_requirements": key_general_requirements
+        }
 
     def extract_all(self) -> dict:
+
+        skill_result = self.extract_skills()
 
         return {
             "title": self.extract_title(),
             "company": self.extract_company(),
             "location": self.extract_location(),
             "experience": self.extract_experience(),
-            "skills": self.extract_skills(),
+
+            "skills": skill_result["technical_skills"],
+            "technical_skills": skill_result["technical_skills"],
+            "general_requirements":
+                skill_result["general_requirements"],
+
             "job_description": self.job_description
         }

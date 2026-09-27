@@ -1,3 +1,7 @@
+# ============================================================
+# JOB SKILL DICTIONARY
+# ============================================================
+
 JOB_SKILLS = [
 
     # ============================================================
@@ -86,9 +90,7 @@ JOB_SKILLS = [
     "Reporting",
     "Dashboard",
     "Dashboards",
-    "Analytics",
-    "Analytical",
-
+    "Analytics"
     # ============================================================
     # VISUALIZATION / BI TOOLS
     # ============================================================
@@ -211,16 +213,13 @@ JOB_SKILLS = [
     "Microsoft Azure",
     "GCP",
     "Google Cloud Platform",
-
     "S3",
     "EC2",
     "Lambda",
     "Glue",
     "Redshift",
-
     "Azure Data Lake",
     "Azure Synapse",
-
     "BigQuery",
     "Cloud Storage",
 
@@ -261,7 +260,6 @@ JOB_SKILLS = [
     "GenAI",
     "LLM",
     "Large Language Models",
-    "Prompt Engineering",
     "Prompt Engineering",
     "OpenAI",
     "GPT",
@@ -308,6 +306,8 @@ JOB_SKILLS = [
     # DOMAIN / JOB REQUIREMENTS
     # ============================================================
 
+    # DOMAIN / JOB REQUIREMENTS
+
     "Search Engines",
     "Google Maps",
     "Map Applications",
@@ -316,4 +316,81 @@ JOB_SKILLS = [
     "Local Knowledge",
     "Data Research",
     "Online Research",
+    "Protection System",
+    "Independent Contractor",
+    "Antivirus",
+    "Evaluator",
+]
+
+
+# ============================================================
+# TECHNICAL SKILLS
+# ============================================================
+
+TECHNICAL_SKILLS = [
+    skill
+    for skill in JOB_SKILLS
+    if skill not in [
+        "Research",
+        "Research Skills",
+        "Problem Solving",
+        "Critical Thinking",
+        "Analytical Skills",
+        "Analytical Thinking",
+        "Data Interpretation",
+        "Decision Making",
+        "Communication",
+        "Stakeholder Management",
+        "Requirement Gathering",
+        "Requirements Analysis",
+        "Project Management",
+        "Search Engines",
+        "Google Maps",
+        "Map Applications",
+        "Social Media",
+        "Geography",
+        "Local Knowledge",
+        "Data Research",
+        "Online Research",
+        "Protection System",
+        "Independent Contractor",
+        "Antivirus",
+        "Evaluator",
+        "Analytical"
+    ]
+]
+
+
+# ============================================================
+# GENERAL / DOMAIN REQUIREMENTS
+# ============================================================
+
+GENERAL_REQUIREMENTS = [
+    "Research",
+    "Research Skills",
+    "Problem Solving",
+    "Critical Thinking",
+    "Analytical Skills",
+    "Analytical Thinking",
+    "Data Interpretation",
+    "Decision Making",
+    "Communication",
+    "Stakeholder Management",
+    "Requirement Gathering",
+    "Requirements Analysis",
+    "Project Management",
+    "Search Engines",
+    "Google Maps",
+    "Map Applications",
+    "Social Media",
+    "Geography",
+    "Local Knowledge",
+    "Data Research",
+    "Online Research",
+    "Protection System",
+    "Independent Contractor",
+    "Antivirus",
+    "Evaluator",
+    "Analytical"
+
 ]

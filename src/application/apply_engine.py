@@ -13,7 +13,7 @@ class ApplyEngine:
         status=self.permission_manager.get_permission_status(
             score
         )
-        return status =="APPROVED"
+        return status =="APPROVE"
     def prepare_application(self,job:dict)->dict:
         """
         Prepare an application request for an approved job.
