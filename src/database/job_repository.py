@@ -195,6 +195,7 @@ class JobRepository:
         """
         Update an existing job using its unique URL.
 
+        The existing application status is preserved.
         Returns:
             True  -> job updated
             False -> job does not exist
@@ -204,7 +205,26 @@ class JobRepository:
             return False
 
         connection = self.database.get_connection()
+        connection.row_factory = __import__("sqlite3").Row
         cursor = connection.cursor()
+
+        # Get the existing application status
+        cursor.execute(
+            """
+            SELECT status
+            FROM jobs
+            WHERE job_url = ?
+            """,
+            (job["job_url"],)
+        )
+
+        existing_job = cursor.fetchone()
+
+        if not existing_job:
+            connection.close()
+            return False
+
+        existing_status = existing_job["status"]
 
         cursor.execute(
             """
@@ -229,7 +249,7 @@ class JobRepository:
                 job.get("description"),
                 ", ".join(job.get("skills", [])),
                 job.get("match_score"),
-                job.get("status", "FOUND"),
+                existing_status,
                 job.get("source"),
                 job.get("job_url")
             )
@@ -239,3 +259,28 @@ class JobRepository:
         connection.close()
 
         return True
+
+    def get_review_jobs(self) -> list:
+        """
+        Return Naukri jobs currently waiting for user review.
+        """
+
+        connection = self.database.get_connection()
+        connection.row_factory = __import__("sqlite3").Row
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM jobs
+            WHERE status = ?
+            AND source = ?
+            ORDER BY match_score DESC, id DESC
+            """,
+            ("REVIEW", "Naukri")
+        )
+
+        jobs = cursor.fetchall()
+        connection.close()
+
+        return [dict(job) for job in jobs]

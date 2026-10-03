@@ -4,6 +4,12 @@ from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
 from src.config.config_manager import ConfigManager
 from src.profile.profile_updater import ProfileManager
+from src.application.application_workflow import ApplicationWorkflow
+from src.application.application_tracker import ApplicationTracker
+from src.application.review_queue import ReviewQueue
+from src.application.captcha_handler import CaptchaHandler
+from src.notification.notifier import Notifier
+from src.application.permission import PermissionManager
 
 
 def main():
@@ -26,9 +32,15 @@ def main():
         # 2. Search Naukri
         # ==================================================
 
+        config_manager = ConfigManager()
+
+        search_config = (
+            config_manager.get_job_search_config()
+        )
+
         browser.search_jobs(
-            role="Data Analyst",
-            location="Bangalore"
+            role=search_config["roles"][0],
+            location=search_config["locations"][0]
         )
 
         # ==================================================
@@ -44,10 +56,10 @@ def main():
             return
 
         # ==================================================
-        # 4. Select first 5 jobs
+        # 4. Select first 20 jobs
         # ==================================================
 
-        jobs_to_process = jobs[:3]
+        jobs_to_process = jobs[:20]
 
         print(
             f"\nProcessing {len(jobs_to_process)} jobs..."
@@ -74,12 +86,6 @@ def main():
         # ==================================================
         # 6. Load search preferences
         # ==================================================
-
-        config_manager = ConfigManager()
-
-        search_config = (
-            config_manager.get_job_search_config()
-        )
 
         preferred_locations = (
             search_config.get(
@@ -134,10 +140,29 @@ def main():
         )
 
         # ==================================================
-        # 8. Create repository
+        # 8. Create repository and application components
         # ==================================================
 
         repository = JobRepository()
+
+        application_tracker = ApplicationTracker(
+            repository
+        )
+
+        review_queue = ReviewQueue(
+            repository=repository,
+            application_tracker=application_tracker
+        )
+
+        captcha_handler = CaptchaHandler()
+        notifier = Notifier()
+
+        application_workflow = ApplicationWorkflow(
+            permission_manager=PermissionManager(),
+            application_tracker=application_tracker,
+            captcha_handler=captcha_handler,
+            notifier=notifier
+        )
 
         # ==================================================
         # 9. Create JobCollector
@@ -207,9 +232,21 @@ def main():
             job = browser.extract_job_details(
                 job
             )
-            print("\n========== EXTRACTED JOB DESCRIPTION ==========")
-            print(job.get("job_description", "")[:5000])
-            print("========== END JOB DESCRIPTION ==========")
+
+            print(
+                "\n========== EXTRACTED JOB DESCRIPTION =========="
+            )
+
+            print(
+                job.get(
+                    "job_description",
+                    ""
+                )[:5000]
+            )
+
+            print(
+                "========== END JOB DESCRIPTION =========="
+            )
 
             # ==================================================
             # 12. Security challenge check
@@ -281,6 +318,16 @@ def main():
             processed_job = result[
                 "job"
             ]
+
+            workflow_result = (
+                application_workflow.process_job(
+                    processed_job,
+                    page_text=processed_job.get(
+                        "job_description",
+                        ""
+                    )
+                )
+            )
 
             # ==================================================
             # 16. Display evaluation
@@ -367,11 +414,11 @@ def main():
             )
 
             print(
-                "\nJob Status:"
+                "\nApplication Status:"
             )
 
             print(
-                processed_job[
+                workflow_result[
                     "status"
                 ]
             )
@@ -385,15 +432,29 @@ def main():
                     "inserted"
                 ]
             )
+
             print(
-                "\nupdated in Database"
+                "\nUpdated in Database:"
             )
+
             print(
-                result["updated"]
+                result[
+                    "updated"
+                ]
             )
 
         # ==================================================
-        # 17. Processing completed
+        # 17. Review pending jobs
+        # ==================================================
+
+        print(
+            "\n========== STARTING REVIEW QUEUE =========="
+        )
+
+        review_queue.review_jobs_interactively()
+
+        # ==================================================
+        # 18. Processing completed
         # ==================================================
 
         print(
