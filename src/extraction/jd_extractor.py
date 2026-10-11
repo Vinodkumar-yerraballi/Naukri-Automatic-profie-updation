@@ -24,19 +24,29 @@ class JDExtractor:
 
         return "Not specified"
 
+    
     def extract_company(self) -> str:
-        title = self.extract_title()
+        import re
 
-        match = re.search(
-            r"^(.+?)\s+is\s+looking\s+for\s+",
-            title,
-            re.IGNORECASE
-        )
+        patterns = [
+            r"^\s*(.+?)\s+is\s+looking\s+for\b",
+            r"^\s*(.+?)\s+is\s+hiring\b",
+            r"^\s*Company\s*:\s*(.+?)\s*$",
+        ]
 
-        if match:
-            return match.group(1).strip()
+        for pattern in patterns:
+            match = re.search(
+                pattern,
+                self.job_description,
+                flags=re.IGNORECASE | re.MULTILINE
+            )
+            if match:
+                company = match.group(1).strip()
+                if company:
+                    return company
 
         return "Not specified"
+
 
     def extract_experience(self) -> str:
         patterns = [

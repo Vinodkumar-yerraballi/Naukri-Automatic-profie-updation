@@ -13,7 +13,8 @@ class JobPipeline:
                     job_description:str,
                     job_url:str,
                     source:str = "TEST",
-                    page_text:str=" ")->dict:
+                    page_text:str=" ",
+                    job_metadata:dict=None)->dict:
         """
         Process a single job from collection
         through the application workflow.
@@ -22,7 +23,8 @@ class JobPipeline:
         collected_job=self.job_collector.process_job(
             job_description=job_description,
             job_url=job_url,
-            source=source
+            source=source,
+            job_metadata=job_metadata
         )
 
         job=collected_job["job"]
@@ -63,7 +65,8 @@ class JobPipeline:
                 ),
                 job_url=job_data.get("job_url",""),
                 source=job_data.get("source","TEST"),
-                page_text=job_data.get("page_text","")
+                page_text=job_data.get("page_text",""),
+                job_metadata=job_data.get("job_metadata")
 
             )
             results.append(result)

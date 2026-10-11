@@ -75,6 +75,16 @@ def main():
         application_workflow=application_workflow
     )
 
+
+    job_metadata={
+    "title": "Data Analyst",
+    "company": "ABC Technologies",
+    "location": "Bangalore",
+    "experience": "0-2 years",
+    "employment_type": "Full Time",
+    "education": ["M.Sc."]
+    }
+    
     job_description = """
     Job Description
 
@@ -98,7 +108,8 @@ def main():
         job_description=job_description,
         job_url="https://test.com/pipeline-job-001",
         source="Naukri",
-        page_text=job_description
+        page_text=job_description,
+        job_metadata=job_metadata
     )
 
     print("\n========== PIPELINE RESULT ==========")

@@ -1,6 +1,11 @@
 candidate:
   name: "Vinod Kumar Yerraballi"
 
+
+education:
+  - M.Sc. Applied Mathematics
+
+
 target_roles:
   - Data Analyst
   - Junior Data Analyst
