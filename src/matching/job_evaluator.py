@@ -3,6 +3,8 @@ from src.matching.skill_matcher import SkillMatcher
 from src.matching.experience_matcher import ExperienceMatcher
 from src.matching.location_matcher import LocationMatcher
 from src.matching.job_scorer import JobScorer
+from src.matching.education_matcher import EducationMatcher
+from src.matching.freshness_matcher import FreshnessMatcher
 
 
 class JobEvaluator:
@@ -18,9 +20,11 @@ class JobEvaluator:
         preferred_locations: list,
         preferred_work_modes: list,
         candidate_min_experience: int = 0,
-        candidate_max_experience: int = 2
+        candidate_max_experience: int = 2,
+        candidate_education: list = None
     ):
         self.skill_matcher = SkillMatcher(candidate_skills)
+        self.education_matcher = EducationMatcher(candidate_education or [])
 
         self.role_matcher = RoleMatcher(target_roles)
 
@@ -37,7 +41,7 @@ class JobEvaluator:
         self.job_score = JobScorer()
 
         self.candidate_skills = candidate_skills
-
+        self.freshness_matcher = FreshnessMatcher()
     def evaluate(self, job: dict) -> dict:
         """
         Evaluate a single job.
@@ -64,6 +68,16 @@ class JobEvaluator:
             job_location
         )
 
+        # education result
+        education_result = self.education_matcher.get_match_result(
+            job.get("education", [])
+
+        )
+
+        posted= job.get("posted", "")
+        freshness_result = self.freshness_matcher.get_match_result(posted)  
+        freshness_score = freshness_result["score"]
+
         # Convert boolean matches into percentages
         role_score = 100 if role_result["match"] else 0
         experience_score = 100 if experience_result["match"] else 0
@@ -84,7 +98,9 @@ class JobEvaluator:
             role_match=role_score,
             skill_match=skill_score,
             location_match=location_score,
-            experience_match=experience_score
+            experience_match=experience_score,
+            education_match=education_result["score"],
+            freshness_match=freshness_score
         )
 
         return {
@@ -96,6 +112,9 @@ class JobEvaluator:
             "experience_match": experience_result,
             "location_match": location_result,
             "final_score": final_score,
+            "education_match": education_result,
+            "freshness_match": freshness_result,
+            "freshness_score": freshness_score,
             "score_category": self.job_score.get_score_category(
                 final_score
             )

@@ -29,6 +29,22 @@ class SkillMatcher:
 
         "scikit learn": "scikit-learn",
         "scikit-learn": "scikit-learn",
+        "data analysis": "data analysis",
+        "data analytics": "data analysis",
+        "data analyst": "data analysis",
+
+        "data management": "data management",
+        "data quality": "data quality",
+
+        "eda": "exploratory data analysis",
+        "exploratory data analysis": "exploratory data analysis",
+
+        "sql": "sql",
+        "python": "python",
+        "exploratory data analysis": "exploratory data analysis",
+        "eda": "exploratory data analysis",
+        "data analysis": "data analysis",
+        "data analytics": "data analysis",
     }
 
     def __init__(self, candidate_skills: list):

@@ -42,6 +42,8 @@ class JobCollector:
 
             if job_metadata.get("company"):
                 job["company"] = job_metadata["company"]
+            if job_metadata and job_metadata.get("posted"):
+                job["posted"] = job_metadata["posted"]
 
             if job_metadata.get("location"):
                 job["location"] = job_metadata["location"]
@@ -93,5 +95,6 @@ class JobCollector:
             "job": job,
             "evaluation": evaluation,
             "inserted": inserted,
+            # "posted" : posted.strip(),
             "updated": False
         }

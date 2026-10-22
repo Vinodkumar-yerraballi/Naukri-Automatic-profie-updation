@@ -37,3 +37,14 @@ class ProfileManager:
         for category in skills_category.values():
             skills.extend(category)
         return skills
+
+    
+    def get_education(self) -> list:
+        """Return the candidate's education qualifications."""
+        profile = self.load_profile()
+        education = profile.get("education", [])
+
+        if isinstance(education, str):
+            return [education]
+
+        return education or []

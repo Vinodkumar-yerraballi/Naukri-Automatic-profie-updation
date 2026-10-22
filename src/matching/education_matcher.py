@@ -54,7 +54,22 @@ class EducationMatcher:
             return f"{normalized_degree} {specialization}"
 
         return normalized_degree
+    @staticmethod
+    def is_postgraduate(qualification: str) -> bool:
+        postgraduate_terms = (
+            "master",
+            "postgraduate",
+            "post graduate",
+            "m.sc",
+            "msc",
+            "m.tech",
+            "mtech",
+            "mba",
+            "mca",
+        )
 
+        text = qualification.lower()
+        return any(term in text for term in postgraduate_terms)
 
     def get_match_result(self, job_requirements) -> dict:
         """
@@ -98,19 +113,44 @@ class EducationMatcher:
                 "message": "Education requirement not specified.",
             }
 
-        matched = [
-            requirement
-            for requirement in required_qualifications
-            if any(
-                requirement in candidate
-                or candidate in requirement
-                for candidate in candidate_qualifications
-            )
-        ]
+        matched = []
+
+        for requirement in required_qualifications:
+            for candidate in candidate_qualifications:
+
+                if (
+                    requirement in candidate
+                    or candidate in requirement
+                ):
+                    matched.append(requirement)
+                    break
+
+                if (
+                    "any postgraduate" in requirement
+                    and self.is_postgraduate(candidate)
+                ):
+                    matched.append(requirement)
+                    break
+
+                if (
+                    "any graduate" in requirement
+                    and "any postgraduate" not in requirement
+                    and any(
+                        term in candidate
+                        for term in (
+                            "bachelor",
+                            "master",
+                            "doctor",
+                            "phd",
+                        )
+                    )
+                ):
+                    matched.append(requirement)
+                    break
 
         score = round(
-            len(matched) / len(required_qualifications) * 100, 2
-        )
+                    len(matched) / len(required_qualifications) * 100, 2
+                )
 
         return {
             "match": score > 0,

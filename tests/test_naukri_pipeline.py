@@ -25,7 +25,8 @@ def main():
             candidate_skills=profile_manager.get_all_skills(),
             target_roles=profile_manager.get_target_roles(),
             preferred_locations=search_config.get("locations", []),
-            preferred_work_modes=search_config.get("work_modes", [])
+            preferred_work_modes=search_config.get("work_modes", []),
+            candidate_education=profile_manager.get_education()
         )
 
         repository = JobRepository("data/test_naukri_pipeline.db")
@@ -94,6 +95,7 @@ def main():
                     "company": details.get("company"),
                     "location": details.get("location"),
                     "experience": details.get("experience"),
+                    "posted": details.get("posted", ""),
                     "employment_type": details.get("employment_type"),
                     "education": details.get("education", [])
                 }

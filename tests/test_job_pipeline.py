@@ -41,7 +41,8 @@ def main():
         candidate_skills=candidate_skills,
         target_roles=target_roles,
         preferred_locations=preferred_locations,
-        preferred_work_modes=preferred_work_modes
+        preferred_work_modes=preferred_work_modes,
+        candidate_education=profile_manager.get_education()
     )
 
     repository = JobRepository(
