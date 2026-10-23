@@ -15,6 +15,7 @@ from src.notification.notifier import Notifier
 from src.application.permission import PermissionManager
 from src.profile.resume_tailoring import ResumeTailoringService
 from src.profile.naukri_resume_uploader import NaukriResumeUploader
+from src.profile.resume_profile_proposal import ResumeProfileProposal
 from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
 
@@ -72,6 +73,36 @@ def main(run_review=True):
                     print(
                         f"Naukri profile resume updated from: {source_resume}"
                     )
+                    if resume_tailoring:
+                        proposal_builder = ResumeProfileProposal(
+                            resume_tailoring
+                        )
+                        proposal = proposal_builder.create(
+                            profile_config.get(
+                                "profile_update_sections",
+                                [
+                                    "headline",
+                                    "summary",
+                                    "skills",
+                                    "employment",
+                                    "education",
+                                    "projects",
+                                    "certifications",
+                                ],
+                            )
+                        )
+                        proposal_path = proposal_builder.save(
+                            proposal,
+                            profile_config.get(
+                                "profile_proposal_file",
+                                "data/processed/profile_update_proposal.json",
+                            ),
+                        )
+                        print(
+                            "Resume-based Naukri profile changes are ready "
+                            "for review. Existing unmatched records are "
+                            f"preserved. Proposal: {proposal_path}"
+                        )
             except (OSError, RuntimeError, ValueError) as error:
                 print(
                     "\nNaukri profile resume update failed; continuing with "
@@ -644,6 +675,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Sign in manually and save a local Naukri browser session.",
     )
+    actions.add_argument(
+        "--prepare-profile-update",
+        action="store_true",
+        help=(
+            "Create a reviewable profile-field proposal from data/resume.pdf "
+            "without changing profile fields."
+        ),
+    )
     arguments = parser.parse_args()
 
     if arguments.setup_naukri_session:
@@ -666,6 +705,46 @@ if __name__ == "__main__":
             print("Local Naukri browser session is ready.")
         finally:
             browser.close()
+    elif arguments.prepare_profile_update:
+        config_manager = ConfigManager()
+        profile_config = config_manager.get_naukri_profile_config()
+        resume_config = config_manager.get_resume_tailoring_config()
+        resume_config["resume_path"] = profile_config.get(
+            "resume_path",
+            resume_config.get("resume_path", "data/resume.pdf"),
+        )
+        resume_tailoring = ResumeTailoringService.from_config(resume_config)
+        if not resume_tailoring:
+            raise RuntimeError(
+                "Resume tailoring must be enabled to prepare profile updates."
+            )
+        proposal_builder = ResumeProfileProposal(resume_tailoring)
+        proposal = proposal_builder.create(
+            profile_config.get(
+                "profile_update_sections",
+                [
+                    "headline",
+                    "summary",
+                    "skills",
+                    "employment",
+                    "education",
+                    "projects",
+                    "certifications",
+                ],
+            )
+        )
+        proposal_path = proposal_builder.save(
+            proposal,
+            profile_config.get(
+                "profile_proposal_file",
+                "data/processed/profile_update_proposal.json",
+            ),
+        )
+        print(
+            f"Profile update proposal saved for review: {proposal_path}\n"
+            "No headline, skills, work history, education, project, or "
+            "certification fields were changed on Naukri."
+        )
     elif arguments.schedule:
         schedule_config = ConfigManager().get_schedule_config()
         if not schedule_config.get("enabled", False):

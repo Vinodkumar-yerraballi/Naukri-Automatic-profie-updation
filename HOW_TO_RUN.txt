@@ -71,6 +71,21 @@ Naukri profile at the next run. If it has not changed, it skips the upload.
 Update skills and job preferences separately in `config\profile.yaml` and
 `config\job_preferences.yaml`; do not put those details in `.env`.
 
+When the PDF changes and is uploaded, the app also creates a reviewable
+proposal for the Naukri headline, profile summary, skills, employment,
+education, projects, and certifications at:
+
+   data\processed\profile_update_proposal.json
+
+The proposal uses only resume-supported facts and preserves existing Naukri
+entries that it cannot find in the resume. It does NOT automatically change
+these profile fields. Review the JSON and make accurate changes in Naukri
+yourself; do not accept any AI-generated detail that is not true.
+
+To create a proposal without doing a job search, run:
+
+   .\venv\Scripts\python.exe main.py --prepare-profile-update
+
 
 RUN ONCE RIGHT NOW
 ------------------
@@ -123,4 +138,3 @@ WHAT THIS APP DOES AND DOES NOT DO
 - Job approvals in the local review queue are not job applications.
 - The app does not submit job applications. Apply manually on Naukri.
 - Never share your Naukri password, Gemini API key, or `.env` contents.
-

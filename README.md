@@ -105,6 +105,25 @@ cannot be confirmed or the saved login expires, the app reports it and
 continues with the job search. Finish sign-in or verification manually and run
 the app again.
 
+When a changed resume is uploaded, the app can also use Gemini (or local
+Ollama as a fallback) to create a reviewable proposal for the selected profile
+sections: headline, summary, skills, employment, education, projects, and
+certifications. The proposal is saved to
+`data\processed\profile_update_proposal.json`. Existing profile records not
+found in the resume are preserved.
+
+**The proposal does not change those Naukri profile fields.** Review the JSON
+and apply accurate changes yourself in your Naukri profile. You can prepare a
+proposal without running a job search using:
+
+```powershell
+python main.py --prepare-profile-update
+```
+
+This review-first boundary avoids overwriting profile information when resume
+parsing is incomplete. Personal/contact information, salary, and notice period
+are not extracted into the proposal.
+
 Each run rotates through up to eight configured role/location searches,
 requests Naukri's one-day posting filter, and locally skips listings shown as
 older than 24 hours or without a recognized posting age. It then processes up
