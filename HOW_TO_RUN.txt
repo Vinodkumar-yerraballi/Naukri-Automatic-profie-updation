@@ -1,0 +1,126 @@
+NAUKRI RESUME AND DAILY JOB RUN - WINDOWS STEPS
+================================================
+
+IMPORTANT: WILL IT RUN WHILE MY LAPTOP IS OFF?
+------------------------------------------------
+No. `python main.py --schedule` runs on your laptop. The laptop must be
+powered on, awake, connected to the internet, and the scheduler terminal must
+remain open. If the laptop is shut down, asleep, disconnected, or the terminal
+is closed, the scheduled run will not happen.
+
+To have it start automatically after you sign in to Windows, you can later
+configure Windows Task Scheduler. Even with Task Scheduler, the laptop must be
+on and awake at the scheduled time.
+
+
+ONE-TIME SETUP
+--------------
+1. Open PowerShell and go to the project folder:
+
+   cd "C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation"
+
+2. Install project dependencies and the Playwright browser (if not already
+   installed):
+
+   .\venv\Scripts\python.exe -m pip install -r requirements.txt
+   .\venv\Scripts\python.exe -m playwright install chromium
+
+3. Create or check the local Gemini key file:
+
+   Open the `.env` file in the project folder. It should contain one line:
+
+   GEMINI_API_KEY=your_Gemini_API_key
+
+   Replace the example with your own key. Never share this key or commit the
+   `.env` file.
+
+4. Save your general resume as a text-based PDF named `resume.pdf` here:
+
+   C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
+
+   Do not put the source resume in `data\raw` or `data\processed`. Keep
+   job-specific AI drafts in `data\processed\resumes`.
+
+5. Start Ollama and check that its local model is installed:
+
+   ollama list
+
+   The list should include `qwen3:8b`. Ollama is the local fallback if Gemini
+   has an error. Leave the Ollama app running for the scheduled workflow.
+
+6. Save a Naukri sign-in session once:
+
+   .\venv\Scripts\python.exe main.py --setup-naukri-session
+
+   Sign in manually in the browser window that opens and complete any
+   verification. Return to PowerShell and press Enter. Do not put your Naukri
+   password in `.env`.
+
+
+WHEN YOU UPDATE YOUR RESUME IN THE EVENING
+-----------------------------------------
+1. Edit your general/master resume in Word or your preferred editor.
+2. Export it as a text-based PDF named `resume.pdf`.
+3. Copy it into the project's `data` folder and replace the existing file:
+
+   C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
+
+The scheduled workflow compares the file contents with the last confirmed
+upload. If the PDF changed, it attempts to upload the new source resume to your
+Naukri profile at the next run. If it has not changed, it skips the upload.
+Update skills and job preferences separately in `config\profile.yaml` and
+`config\job_preferences.yaml`; do not put those details in `.env`.
+
+
+RUN ONCE RIGHT NOW
+------------------
+Open PowerShell in the project folder and run:
+
+   .\venv\Scripts\python.exe main.py
+
+This starts one scan immediately. It may ask you to review jobs interactively.
+If the terminal does not accept input, run the command directly in your own
+PowerShell window.
+
+
+RUN EVERY DAY AT 9:30 AM INDIA TIME
+----------------------------------
+1. Make sure the laptop is on and awake. Make sure Ollama is running.
+2. Open PowerShell in the project folder.
+3. Start the scheduler:
+
+   .\venv\Scripts\python.exe main.py --schedule
+
+4. Keep that PowerShell window open. A message such as
+
+   Next job and resume-draft run: 2026-10-24T09:30+05:30
+
+   means the scheduler is waiting for the next run. It is not an error.
+5. At the scheduled time, the app attempts to update the profile resume if the
+   source PDF changed, then searches recent matching listings and creates
+   separate job-specific resume drafts for suitable jobs.
+6. Check your Naukri profile after the first attempted upload to confirm that
+   the resume was actually updated. If the app reports that the upload could
+   not be confirmed, complete any sign-in or verification manually and check
+   the profile before trying again.
+
+If you close the scheduler terminal or shut down the laptop, the scheduler
+stops. Start it again with the command above when you next use the laptop. If
+the laptop was off at 9:30 AM, the missed run does not run while it is off.
+After starting the scheduler later, it waits for the next scheduled 9:30 AM.
+To run immediately instead, use `python main.py`.
+
+
+WHAT THIS APP DOES AND DOES NOT DO
+---------------------------------
+- It can attempt to upload the exact source PDF at `data\resume.pdf` to your
+  signed-in Naukri profile when the file changes.
+- Gemini is tried first for job-specific resume drafts. Resume text and the
+  job description are sent to Google's Gemini API. Read Google's current
+  data-use terms before using it.
+- If Gemini fails, the app tries the local Ollama `qwen3:8b` model.
+- Review all AI-generated job-specific drafts for accuracy.
+- Job approvals in the local review queue are not job applications.
+- The app does not submit job applications. Apply manually on Naukri.
+- Never share your Naukri password, Gemini API key, or `.env` contents.
+

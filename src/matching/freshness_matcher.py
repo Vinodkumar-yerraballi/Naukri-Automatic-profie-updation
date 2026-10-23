@@ -5,6 +5,37 @@ import re
 class FreshnessMatcher:
     """Score jobs according to how recently they were posted."""
 
+    def is_within_last_hours(
+        self,
+        posted: str,
+        max_hours: int = 24
+    ) -> bool:
+        """Return whether the displayed posting age is within the limit."""
+        if not posted or max_hours < 0:
+            return False
+
+        text = posted.lower().strip()
+        if any(label in text for label in ("just now", "today", "few hours")):
+            return True
+
+        match = re.search(
+            r"(\d+)\+?\s*(hours?|hrs?|days?|weeks?|months?)",
+            text
+        )
+        if not match:
+            return False
+
+        amount = int(match.group(1))
+        unit = match.group(2)
+        if unit in ("hour", "hours", "hr", "hrs"):
+            age_hours = amount
+        elif unit in ("day", "days"):
+            age_hours = amount * 24
+        else:
+            return False
+
+        return age_hours <= max_hours
+
     def get_match_result(self, posted: str) -> dict:
         if not posted or not posted.strip():
             return {

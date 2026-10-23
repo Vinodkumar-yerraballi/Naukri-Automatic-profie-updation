@@ -1,4 +1,7 @@
-﻿from src.ingestion.naukri_browser import NaukriBrowser
+import argparse
+from datetime import date
+
+from src.ingestion.naukri_browser import NaukriBrowser
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
@@ -10,11 +13,24 @@ from src.application.review_queue import ReviewQueue
 from src.application.captcha_handler import CaptchaHandler
 from src.notification.notifier import Notifier
 from src.application.permission import PermissionManager
+from src.profile.resume_tailoring import ResumeTailoringService
+from src.profile.naukri_resume_uploader import NaukriResumeUploader
+from src.pipelines.daily_scheduler import run_daily
+from src.matching.freshness_matcher import FreshnessMatcher
 
 
-def main():
+def main(run_review=True):
 
-    print("\n========== NAUKRI -> PIPELINE TEST ==========")
+    print("\n========== NAUKRI JOB PIPELINE ==========")
+
+    config_manager = ConfigManager()
+    profile_config = config_manager.get_naukri_profile_config()
+    resume_config = config_manager.get_resume_tailoring_config()
+    profile_update_enabled = profile_config.get("update_resume", False)
+    source_resume = profile_config.get(
+        "resume_path",
+        resume_config.get("resume_path", "data/resume.pdf"),
+    )
 
     browser = NaukriBrowser(
         headless=False
@@ -22,32 +38,126 @@ def main():
 
     try:
 
+        resume_tailoring = ResumeTailoringService.from_config(resume_config)
+
+        if resume_tailoring:
+            print(
+                "Resume tailoring is enabled. Drafts will be saved locally "
+                "for manual review."
+            )
+
         # ==================================================
         # 1. Start browser
         # ==================================================
 
-        browser.start()
+        if profile_update_enabled:
+            browser.start_persistent(
+                profile_config.get(
+                    "browser_profile_directory",
+                    "data/naukri_browser_profile",
+                )
+            )
+            try:
+                uploader = NaukriResumeUploader(
+                    profile_config.get(
+                        "upload_state_file",
+                        "data/profile_resume_upload.json",
+                    )
+                )
+                uploaded = uploader.update_if_changed(
+                    browser,
+                    source_resume,
+                )
+                if uploaded:
+                    print(
+                        f"Naukri profile resume updated from: {source_resume}"
+                    )
+            except (OSError, RuntimeError, ValueError) as error:
+                print(
+                    "\nNaukri profile resume update failed; continuing with "
+                    "job search: "
+                    f"{type(error).__name__}: {error}"
+                )
+        else:
+            browser.start()
 
         # ==================================================
         # 2. Search Naukri
         # ==================================================
 
-        config_manager = ConfigManager()
-
         search_config = (
             config_manager.get_job_search_config()
         )
 
-        browser.search_jobs(
-            role=search_config["roles"][0],
-            location=search_config["locations"][0]
+        roles = search_config.get("roles", [])
+        locations = search_config.get("locations", [])
+        if not roles or not locations:
+            raise ValueError(
+                "At least one target role and location must be configured."
+            )
+
+        search_queries = [
+            (role, location)
+            for role in roles
+            for location in locations
+        ]
+        max_searches = max(
+            1,
+            int(
+                search_config.get(
+                    "max_searches_per_run", len(search_queries)
+                )
+            ),
         )
+        first_query = date.today().toordinal() % len(search_queries)
+        rotated_queries = (
+            search_queries[first_query:] + search_queries[:first_query]
+        )
+        selected_queries = rotated_queries[:max_searches]
+
+        # Rotate through configured role/location pairs to keep each daily run
+        # bounded while covering all configured searches over time.
+        jobs_by_url = {}
+        posted_within_hours = int(
+            search_config.get("posted_within_hours", 24)
+        )
+        freshness_matcher = FreshnessMatcher()
+        for index, (role, location) in enumerate(selected_queries, start=1):
+            print(
+                f"\nSearch {index}/{len(selected_queries)}: "
+                f"{role} in {location}"
+            )
+            browser.search_jobs(
+                role=role,
+                location=location,
+                posted_within_hours=posted_within_hours,
+            )
+            if browser.detect_security_challenge():
+                print(
+                    "Security challenge detected. Stop the scheduled run "
+                    "and complete it manually in the browser."
+                )
+                return
+            for job_card in browser.get_job_cards():
+                if not freshness_matcher.is_within_last_hours(
+                    job_card.get("posted", ""),
+                    max_hours=posted_within_hours,
+                ):
+                    print(
+                        "Skipping listing with unknown or older posting age: "
+                        f"{job_card.get('title', 'Unknown')} "
+                        f"({job_card.get('posted') or 'age unavailable'})"
+                    )
+                    continue
+                job_url = job_card.get("job_url")
+                if job_url:
+                    jobs_by_url.setdefault(job_url, job_card)
 
         # ==================================================
-        # 3. Get job cards
+        # 3. Get unique job cards from the selected searches
         # ==================================================
 
-        jobs = browser.get_job_cards()
+        jobs = list(jobs_by_url.values())
 
         print(f"\nJobs found: {len(jobs)}")
 
@@ -329,6 +439,23 @@ def main():
                 )
             )
 
+            if (
+                resume_tailoring
+                and processed_job.get("match_score", 0)
+                >= config_manager.get_minimum_score()
+            ):
+                try:
+                    draft_path = resume_tailoring.create_draft(processed_job)
+                except (OSError, RuntimeError, ValueError) as error:
+                    print(
+                        "\nResume draft failed for "
+                        f"{processed_job.get('title', 'Unknown')} at "
+                        f"{processed_job.get('company', 'Unknown')}: "
+                        f"{type(error).__name__}: {error}"
+                    )
+                else:
+                    print(f"\nTailored resume draft saved: {draft_path}")
+
             # ==================================================
             # 16. Display evaluation
             # ==================================================
@@ -451,7 +578,13 @@ def main():
             "\n========== STARTING REVIEW QUEUE =========="
         )
 
-        review_queue.review_jobs_interactively()
+        if run_review:
+            review_queue.review_jobs_interactively()
+        else:
+            print(
+                "\nJobs remain in the review queue. No applications were "
+                "submitted; review and apply manually."
+            )
 
         # ==================================================
         # 18. Processing completed
@@ -494,4 +627,55 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Search for matching jobs, update the profile resume, and "
+            "create resume drafts."
+        )
+    )
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--schedule",
+        action="store_true",
+        help="Run the pipeline daily at the configured local time.",
+    )
+    actions.add_argument(
+        "--setup-naukri-session",
+        action="store_true",
+        help="Sign in manually and save a local Naukri browser session.",
+    )
+    arguments = parser.parse_args()
+
+    if arguments.setup_naukri_session:
+        config_manager = ConfigManager()
+        profile_config = config_manager.get_naukri_profile_config()
+        browser = NaukriBrowser(headless=False)
+        try:
+            browser.start_persistent(
+                profile_config.get(
+                    "browser_profile_directory",
+                    "data/naukri_browser_profile",
+                )
+            )
+            browser.setup_naukri_login()
+            input(
+                "Sign in to Naukri in the opened browser. "
+                "After you reach your account, press Enter here to save "
+                "the session: "
+            )
+            print("Local Naukri browser session is ready.")
+        finally:
+            browser.close()
+    elif arguments.schedule:
+        schedule_config = ConfigManager().get_schedule_config()
+        if not schedule_config.get("enabled", False):
+            raise RuntimeError("Daily scheduling is disabled in configuration.")
+        run_daily(
+            task=lambda: main(run_review=False),
+            run_at=schedule_config.get("time", "09:30"),
+            timezone_name=schedule_config.get(
+                "timezone", "Asia/Kolkata"
+            ),
+        )
+    else:
+        main()

@@ -1,1 +1,6 @@
-yaml
+PyYAML
+python-dotenv
+playwright
+pypdf
+python-docx
+tzdata

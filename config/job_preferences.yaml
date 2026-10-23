@@ -26,6 +26,10 @@ job_search:
   employment_type:
     - Full Time
 
+  max_searches_per_run: 8
+
+  posted_within_hours: 24
+
 
 matching:
 
@@ -47,3 +51,42 @@ application:
   auto_apply: false
 
   maximum_applications_per_day: 15
+
+
+resume_tailoring:
+
+  enabled: true
+
+  provider: gemini
+
+  model: gemini-3.8-flash
+
+  fallback_provider: ollama
+
+  fallback_model: qwen3:8b
+
+  fallback_base_url: http://localhost:11434
+
+  resume_path: C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
+
+  output_directory: data/processed/resumes
+
+
+naukri_profile:
+
+  update_resume: true
+
+  resume_path: data/resume.pdf
+
+  browser_profile_directory: data/naukri_browser_profile
+
+  upload_state_file: data/profile_resume_upload.json
+
+
+schedule:
+
+  enabled: true
+
+  time: "09:30"
+
+  timezone: Asia/Kolkata

@@ -1,4 +1,6 @@
 from playwright.sync_api import sync_playwright
+from pathlib import Path
+import re
 from urllib.parse import quote_plus
 
 
@@ -37,6 +39,18 @@ class NaukriBrowser:
             }
         )
 
+    def start_persistent(self, user_data_dir: str | Path):
+        """Start Chromium with a persistent local browser session."""
+        profile_dir = Path(user_data_dir)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        self.playwright = sync_playwright().start()
+        self.browser = self.playwright.chromium.launch_persistent_context(
+            user_data_dir=str(profile_dir.resolve()),
+            headless=self.headless,
+            viewport={"width": 1440, "height": 900},
+        )
+        self.page = self.browser.new_page()
+
     def open_naukri(self):
         """Open the Naukri website."""
 
@@ -51,10 +65,104 @@ class NaukriBrowser:
             timeout=60000
         )
 
+    def setup_naukri_login(self):
+        """Open Naukri's login page for a user to sign in manually."""
+        if self.page is None:
+            raise RuntimeError(
+                "Browser is not started. Call start_persistent() first."
+            )
+        self.page.goto(
+            "https://www.naukri.com/nlogin/login",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+
+    def update_profile_resume(self, resume_path: str | Path) -> None:
+        """Upload a resume to the signed-in Naukri profile and verify it."""
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        resume = Path(resume_path).resolve()
+        if not resume.is_file():
+            raise FileNotFoundError(f"Resume file not found: {resume}")
+
+        self.page.goto(
+            "https://www.naukri.com/mnjuser/profile",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        self.page.wait_for_timeout(2000)
+
+        if self.detect_security_challenge():
+            raise RuntimeError(
+                "Naukri requested a security check. Complete it manually "
+                "and run the profile update again."
+            )
+
+        current_url = self.page.url.lower()
+        page_text = self.page.locator("body").inner_text().lower()
+        if "login" in current_url or "login to naukri" in page_text:
+            raise RuntimeError(
+                "Naukri is not signed in in the saved browser profile. "
+                "Run `python main.py --setup-naukri-session` and sign in "
+                "manually."
+            )
+
+        upload_control = self.page.locator(
+            "input[type='file'][accept*='.pdf']"
+        )
+        if upload_control.count() == 0:
+            upload_link = self.page.get_by_text(
+                re.compile(r"upload resume|update resume", re.IGNORECASE)
+            )
+            if upload_link.count() > 0:
+                upload_link.first.click(timeout=10000)
+                self.page.wait_for_timeout(1000)
+            upload_control = self.page.locator("input[type='file']")
+
+        if upload_control.count() == 0:
+            raise RuntimeError(
+                "Could not find the resume upload control on the Naukri "
+                "profile page; no file was uploaded."
+            )
+
+        upload_control.first.set_input_files(str(resume))
+        self.page.wait_for_timeout(2000)
+
+        save_button = self.page.get_by_role(
+            "button",
+            name=re.compile(
+                r"(upload|update|save).*resume|resume.*(upload|update|save)",
+                re.IGNORECASE,
+            ),
+        )
+        if save_button.count() > 0 and save_button.first.is_visible():
+            save_button.first.click(timeout=10000)
+
+        self.page.wait_for_timeout(5000)
+        confirmation_text = self.page.locator("body").inner_text().lower()
+        success_phrases = (
+            "resume uploaded",
+            "resume updated",
+            "successfully uploaded",
+            "successfully updated",
+        )
+        if (
+            resume.name.lower() not in confirmation_text
+            and not any(
+                phrase in confirmation_text for phrase in success_phrases
+            )
+        ):
+            raise RuntimeError(
+                "The profile page did not confirm the resume upload. "
+                "Check your Naukri profile manually before retrying."
+            )
+
     def search_jobs(
         self,
         role: str,
-        location: str = ""
+        location: str = "",
+        posted_within_hours: int | None = None,
     ):
         """
         Search Naukri for a role and location.
@@ -80,6 +188,12 @@ class NaukriBrowser:
                 "https://www.naukri.com/"
                 f"{role_query}-jobs"
             )
+
+        if posted_within_hours is not None:
+            if posted_within_hours <= 0:
+                raise ValueError("posted_within_hours must be positive.")
+            if posted_within_hours <= 24:
+                url += "?jobAge=1"
 
         print("\nOpening search URL:")
         print(url)

@@ -56,6 +56,18 @@ class ConfigManager:
             {}
         )
 
+    def get_resume_tailoring_config(self) -> dict:
+        """Return resume-tailoring configuration."""
+        return self.preferences.get("resume_tailoring", {})
+
+    def get_schedule_config(self) -> dict:
+        """Return daily schedule configuration."""
+        return self.preferences.get("schedule", {})
+
+    def get_naukri_profile_config(self) -> dict:
+        """Return Naukri profile-update configuration."""
+        return self.preferences.get("naukri_profile", {})
+
     def get_minimum_score(self) -> float:
         """
         Return the minimum job matching score.
