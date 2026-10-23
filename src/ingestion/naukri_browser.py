@@ -129,12 +129,11 @@ class NaukriBrowser:
         upload_control.first.set_input_files(str(resume))
         self.page.wait_for_timeout(2000)
 
-        save_button = self.page.get_by_role(
-            "button",
-            name=re.compile(
-                r"(upload|update|save).*resume|resume.*(upload|update|save)",
-                re.IGNORECASE,
-            ),
+        save_button = self.page.locator(
+            "input[type='button'][value*='resume' i], "
+            "input[type='submit'][value*='resume' i], "
+            "button[aria-label*='resume' i], "
+            "button:has-text('resume')"
         )
         if save_button.count() > 0 and save_button.first.is_visible():
             save_button.first.click(timeout=10000)
