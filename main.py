@@ -194,7 +194,6 @@ def main(run_review=True):
 
         if not jobs:
             print("No jobs found.")
-            return
 
         # ==================================================
         # 4. Select first 20 jobs
@@ -318,6 +317,8 @@ def main(run_review=True):
         # 10. Process each job
         # ==================================================
 
+        resume_drafts = {}
+
         for index, job in enumerate(
             jobs_to_process,
             start=1
@@ -433,6 +434,19 @@ def main(run_review=True):
 
                 continue
 
+            description_quality_issues = job.get(
+                "description_quality_issues",
+                [],
+            )
+            if description_quality_issues:
+                print(
+                    "\nSkipping job because the extracted description "
+                    "contains page-interface text:"
+                )
+                for issue in description_quality_issues:
+                    print(f"- {issue}")
+                continue
+
             # ==================================================
             # 14. Send job to JobCollector
             # ==================================================
@@ -486,6 +500,7 @@ def main(run_review=True):
                     )
                 else:
                     print(f"\nTailored resume draft saved: {draft_path}")
+                    resume_drafts[processed_job["job_url"]] = str(draft_path)
 
             # ==================================================
             # 16. Display evaluation
@@ -610,11 +625,56 @@ def main(run_review=True):
         )
 
         if run_review:
-            review_queue.review_jobs_interactively()
+            application_config = config_manager.get_application_config()
+            submission_callback = None
+            if application_config.get("auto_apply", False):
+                maximum_applications = int(
+                    application_config.get(
+                        "maximum_applications_per_day", 15
+                    )
+                )
+
+                def submit_approved_job(job):
+                    attempts_today = (
+                        repository.get_application_attempt_count_today()
+                    )
+                    if attempts_today >= maximum_applications:
+                        return {
+                            "status": "LIMIT_REACHED",
+                            "message": (
+                                "The configured daily application limit "
+                                f"({maximum_applications}) has been reached."
+                            ),
+                        }
+
+                    result = browser.submit_application(job)
+                    if result["status"] == "APPLIED":
+                        application_tracker.mark_applied(job["job_url"])
+                        notifier.notify_application_status(
+                            job.get("title", "Unknown"),
+                            job.get("company", "Unknown"),
+                            "APPLIED",
+                        )
+                    elif result["status"] == "ALREADY_APPLIED":
+                        application_tracker.mark_already_applied(
+                            job["job_url"]
+                        )
+                    elif result["status"] == "UNCONFIRMED":
+                        application_tracker.mark_application_unconfirmed(
+                            job["job_url"]
+                        )
+                    return result
+
+                submission_callback = submit_approved_job
+
+            review_queue.review_jobs_interactively(
+                submission_callback=submission_callback,
+                resume_drafts=resume_drafts,
+            )
         else:
             print(
                 "\nJobs remain in the review queue. No applications were "
-                "submitted; review and apply manually."
+                "submitted because interactive approval was not enabled."
             )
 
         # ==================================================

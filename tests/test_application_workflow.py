@@ -130,5 +130,5 @@ def test_approved_job():
 
     result = workflow.process_job(job)
 
-    assert result["status"] == "READY"
-    assert result["success"] is True
+    assert result["status"] == "REVIEW"
+    assert result["success"] is False

@@ -6,6 +6,14 @@ class SkillMatcher:
 
         "powerbi": "power bi",
         "power bi": "power bi",
+        "airflow": "apache airflow",
+        "apache airflow": "apache airflow",
+        "amazon web services": "aws",
+        "aws": "aws",
+        "microsoft azure": "azure",
+        "azure": "azure",
+        "google cloud platform": "gcp",
+        "gcp": "gcp",
 
         "ml": "machine learning",
         "machine learning": "machine learning",
@@ -60,10 +68,21 @@ class SkillMatcher:
         # Use alias if available
         return cls.SKILL_ALIASES.get(skill, skill)
 
+    @classmethod
+    def unique_job_skills(cls, job_skills: list) -> list:
+        unique_skills = []
+        seen = set()
+        for skill in job_skills:
+            normalized_skill = cls.normalize_skill(skill)
+            if normalized_skill not in seen:
+                seen.add(normalized_skill)
+                unique_skills.append(skill)
+        return unique_skills
+
     def find_matched_skills(self, job_skills: list) -> list:
         matched_skills = []
 
-        for skill in job_skills:
+        for skill in self.unique_job_skills(job_skills):
             normalized_skill = self.normalize_skill(skill)
 
             if normalized_skill in self.candidate_skills:
@@ -74,7 +93,7 @@ class SkillMatcher:
     def finding_missing_skills(self, job_skills: list) -> list:
         missing_skills = []
 
-        for skill in job_skills:
+        for skill in self.unique_job_skills(job_skills):
             normalized_skill = self.normalize_skill(skill)
 
             if normalized_skill not in self.candidate_skills:
@@ -83,13 +102,14 @@ class SkillMatcher:
         return missing_skills
 
     def calculate_match_percentage(self, job_skills: list) -> float:
-        if not job_skills:
+        unique_job_skills = self.unique_job_skills(job_skills)
+        if not unique_job_skills:
             return None
 
-        matched_skills = self.find_matched_skills(job_skills)
+        matched_skills = self.find_matched_skills(unique_job_skills)
 
         percentage = (
-            len(matched_skills) / len(job_skills)
+            len(matched_skills) / len(unique_job_skills)
         ) * 100
 
         return round(percentage, 2)

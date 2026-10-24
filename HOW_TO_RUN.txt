@@ -1,140 +1,152 @@
-NAUKRI RESUME AND DAILY JOB RUN - WINDOWS STEPS
-================================================
+NAUKRI PROFILE AND JOB PIPELINE - QUICK COMMAND GUIDE
+====================================================
 
-IMPORTANT: WILL IT RUN WHILE MY LAPTOP IS OFF?
-------------------------------------------------
-No. `python main.py --schedule` runs on your laptop. The laptop must be
-powered on, awake, connected to the internet, and the scheduler terminal must
-remain open. If the laptop is shut down, asleep, disconnected, or the terminal
-is closed, the scheduled run will not happen.
-
-To have it start automatically after you sign in to Windows, you can later
-configure Windows Task Scheduler. Even with Task Scheduler, the laptop must be
-on and awake at the scheduled time.
-
-
-ONE-TIME SETUP
---------------
-1. Open PowerShell and go to the project folder:
+Open PowerShell and move to the project folder:
 
    cd "C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation"
 
-2. Install project dependencies and the Playwright browser (if not already
-   installed):
-
-   .\venv\Scripts\python.exe -m pip install -r requirements.txt
-   .\venv\Scripts\python.exe -m playwright install chromium
-
-3. Create or check the local Gemini key file:
-
-   Open the `.env` file in the project folder. It should contain one line:
-
-   GEMINI_API_KEY=your_Gemini_API_key
-
-   Replace the example with your own key. Never share this key or commit the
-   `.env` file.
-
-4. Save your general resume as a text-based PDF named `resume.pdf` here:
-
-   C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
-
-   Do not put the source resume in `data\raw` or `data\processed`. Keep
-   job-specific AI drafts in `data\processed\resumes`.
-
-5. Start Ollama and check that its local model is installed:
-
-   ollama list
-
-   The list should include `qwen3:8b`. Ollama is the local fallback if Gemini
-   has an error. Leave the Ollama app running for the scheduled workflow.
-
-6. Save a Naukri sign-in session once:
-
-   .\venv\Scripts\python.exe main.py --setup-naukri-session
-
-   Sign in manually in the browser window that opens and complete any
-   verification. Return to PowerShell and press Enter. Do not put your Naukri
-   password in `.env`.
+Use the commands below from this folder. The project virtual environment is
+named "venv".
 
 
-WHEN YOU UPDATE YOUR RESUME IN THE EVENING
------------------------------------------
-1. Edit your general/master resume in Word or your preferred editor.
-2. Export it as a text-based PDF named `resume.pdf`.
-3. Copy it into the project's `data` folder and replace the existing file:
+COMMANDS YOU WILL USE
+---------------------
 
-   C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
+1. Save or refresh your local Naukri sign-in session (run once, or if login
+   has expired):
 
-The scheduled workflow compares the file contents with the last confirmed
-upload. If the PDF changed, it attempts to upload the new source resume to your
-Naukri profile at the next run. If it has not changed, it skips the upload.
-Update skills and job preferences separately in `config\profile.yaml` and
-`config\job_preferences.yaml`; do not put those details in `.env`.
+   venv\Scripts\python.exe main.py --setup-naukri-session
 
-When the PDF changes and is uploaded, the app also creates a reviewable
-proposal for the Naukri headline, profile summary, skills, employment,
-education, projects, and certifications at:
+   Sign in yourself in the browser window, complete any verification, return
+   to PowerShell, and press Enter. Never put your Naukri password in a file.
+
+2. Create a profile-field proposal from your current source resume:
+
+   venv\Scripts\python.exe main.py --prepare-profile-update
+
+   The proposal is saved at:
 
    data\processed\profile_update_proposal.json
 
-The proposal uses only resume-supported facts and preserves existing Naukri
-entries that it cannot find in the resume. It does NOT automatically change
-these profile fields. Review the JSON and make accurate changes in Naukri
-yourself; do not accept any AI-generated detail that is not true.
+3. Run one job search now, attempt to upload a changed source resume, and
+   review pending jobs interactively:
 
-To create a proposal without doing a job search, run:
+   venv\Scripts\python.exe main.py
 
-   .\venv\Scripts\python.exe main.py --prepare-profile-update
+   Keep the PowerShell window open and available for input. If
+   application.auto_apply is true, approving a job with A can trigger a
+   supported one-step Apply action on Naukri. Review the job and resume
+   carefully before approving.
 
+4. Start the daily job/resume pipeline:
 
-RUN ONCE RIGHT NOW
-------------------
-Open PowerShell in the project folder and run:
+   venv\Scripts\python.exe main.py --schedule
 
-   .\venv\Scripts\python.exe main.py
-
-This starts one scan immediately. It may ask you to review jobs interactively.
-If the terminal does not accept input, run the command directly in your own
-PowerShell window.
+   The configured schedule is 09:30 Asia/Kolkata. Keep the laptop on, awake,
+   connected to the internet, and the PowerShell window open.
 
 
-RUN EVERY DAY AT 9:30 AM INDIA TIME
-----------------------------------
-1. Make sure the laptop is on and awake. Make sure Ollama is running.
-2. Open PowerShell in the project folder.
-3. Start the scheduler:
+UPDATE YOUR RESUME ON NAUKRI
+----------------------------
 
-   .\venv\Scripts\python.exe main.py --schedule
+1. Update your master resume and export it as a text-based PDF.
+2. Replace this project file with the updated PDF:
 
-4. Keep that PowerShell window open. A message such as
+   data\resume.pdf
 
-   Next job and resume-draft run: 2026-10-24T09:30+05:30
+3. To have the app attempt the upload, run:
 
-   means the scheduler is waiting for the next run. It is not an error.
-5. At the scheduled time, the app attempts to update the profile resume if the
-   source PDF changed, then searches recent matching listings and creates
-   separate job-specific resume drafts for suitable jobs.
-6. Check your Naukri profile after the first attempted upload to confirm that
-   the resume was actually updated. If the app reports that the upload could
-   not be confirmed, complete any sign-in or verification manually and check
-   the profile before trying again.
+   venv\Scripts\python.exe main.py
 
-If you close the scheduler terminal or shut down the laptop, the scheduler
-stops. Start it again with the command above when you next use the laptop. If
-the laptop was off at 9:30 AM, the missed run does not run while it is off.
-After starting the scheduler later, it waits for the next scheduled 9:30 AM.
-To run immediately instead, use `python main.py`.
+   The normal run compares the PDF with the last confirmed upload and attempts
+   an upload only when it has changed. It requires the saved Naukri session.
+   Complete login or verification yourself if prompted, then check your
+   Naukri profile to confirm the resume was updated.
+
+You can also upload the PDF yourself on Naukri. The profile-proposal command
+does not upload the PDF.
 
 
-WHAT THIS APP DOES AND DOES NOT DO
+UPDATE YOUR NAUKRI PROFILE FIELDS
 ---------------------------------
-- It can attempt to upload the exact source PDF at `data\resume.pdf` to your
-  signed-in Naukri profile when the file changes.
-- Gemini is tried first for job-specific resume drafts. Resume text and the
-  job description are sent to Google's Gemini API. Read Google's current
-  data-use terms before using it.
-- If Gemini fails, the app tries the local Ollama `qwen3:8b` model.
-- Review all AI-generated job-specific drafts for accuracy.
-- Job approvals in the local review queue are not job applications.
-- The app does not submit job applications. Apply manually on Naukri.
-- Never share your Naukri password, Gemini API key, or `.env` contents.
+
+The app does not automatically edit the Naukri headline, desired job title,
+summary, skills, employment, education, projects, or certifications.
+
+1. Generate a proposal using the command above.
+2. Open data\processed\profile_update_proposal.json and check every detail
+   against your real experience and resume.
+3. Sign in to Naukri and open your profile's edit page.
+4. Copy only accurate details into the matching Naukri fields and save them
+   yourself. For example, set your desired job title to Data Scientist if
+   that is the role you want. The proposal may suggest a separate headline.
+5. Review the profile after saving.
+
+To change the roles and skills used by this project's job matching, edit:
+
+   config\profile.yaml
+
+To change search locations, experience range, schedule time, application
+limit, and related preferences, edit:
+
+   config\job_preferences.yaml
+
+Changing these YAML files changes the app's search/matching preferences. It
+does not itself change the corresponding fields on Naukri.
+
+
+REVIEW AND APPLY FOR JOBS
+-------------------------
+
+The application settings are in config\job_preferences.yaml:
+
+   application:
+     mode: review
+     auto_apply: true
+     maximum_applications_per_day: 15
+
+With auto_apply set to true, the interactive command is:
+
+   venv\Scripts\python.exe main.py
+
+For each pending job, inspect the job details and draft, then choose:
+
+   A = approve this job; the app may attempt its supported one-step Apply
+   R = reject this job
+   S = skip for now
+   Q = exit the review queue
+
+Approval is per job. The app may attempt an application only when it can
+identify one clear Apply or Apply now action on a matching Naukri job page.
+It stops rather than automating multi-step forms, external application sites,
+or uncertain page states. It does not bypass login, CAPTCHA, OTP, or other
+verification.
+
+The tailored DOCX draft is saved locally under data\processed\resumes; it is
+not automatically attached to the Naukri application. Naukri uses the resume
+already on your profile. Check Naukri after each attempt. If the app reports
+an unconfirmed result, verify the application on Naukri before trying again.
+The configured daily limit counts confirmed and uncertain attempts.
+
+IMPORTANT: --schedule runs the pipeline without an interactive review prompt.
+It searches and can attempt a changed-resume upload, but does not run the
+approval queue and does not submit applications. For applications that need
+your approval, use "python main.py" in an interactive PowerShell window and
+approve each job yourself.
+
+
+ABOUT MATCH AND ATS SCORES
+--------------------------
+
+The configured matching.minimum_score is this project's job-relevance score.
+It is not an ATS score. Different employers and applicant systems use
+different criteria, so the project cannot guarantee a 90% ATS score, an
+interview, or a job offer. Keep all resume and profile details truthful and
+review AI-generated content before using it.
+
+
+PRIVACY
+-------
+
+Keep your resume, .env file, API keys, and saved browser-profile folder
+private. Do not share passwords, API keys, or saved browser sessions.

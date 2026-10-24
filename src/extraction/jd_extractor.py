@@ -194,7 +194,8 @@ class JDExtractor:
                 if len(skill_lower) <= 2:
                     continue
 
-                if skill_lower in key_skills_text:
+                pattern = rf"(?<!\w){re.escape(skill_lower)}(?!\w)"
+                if re.search(pattern, key_skills_text):
                     key_technical_skills.append(skill_clean)
 
         # ============================================================
@@ -215,29 +216,32 @@ class JDExtractor:
                 if len(requirement_lower) <= 2:
                     continue
 
-                if requirement_lower in key_skills_text:
+                pattern = rf"(?<!\w){re.escape(requirement_lower)}(?!\w)"
+                if re.search(pattern, key_skills_text):
                     key_general_requirements.append(
                         requirement_clean
                     )
 
-        # ============================================================
-        # 7. Remove duplicates
-        # ============================================================
-
-        key_technical_skills = list(
-            dict.fromkeys(key_technical_skills)
-        )
-
+        key_technical_skills = list(dict.fromkeys(key_technical_skills))
         description_technical_skills = list(
             dict.fromkeys(description_technical_skills)
         )
-
         key_general_requirements = list(
             dict.fromkeys(key_general_requirements)
         )
-
         description_general_requirements = list(
             dict.fromkeys(description_general_requirements)
+        )
+        technical_skills = list(
+            dict.fromkeys(
+                key_technical_skills + description_technical_skills
+            )
+        )
+        general_requirements = list(
+            dict.fromkeys(
+                key_general_requirements
+                + description_general_requirements
+            )
         )
 
         # ============================================================
@@ -248,15 +252,13 @@ class JDExtractor:
             "key_technical_skills": key_technical_skills,
             "description_technical_skills": description_technical_skills,
 
-            # Keep this for compatibility with existing project code
-            "technical_skills": key_technical_skills,
+            "technical_skills": technical_skills,
 
             "key_general_requirements": key_general_requirements,
             "description_general_requirements":
                 description_general_requirements,
 
-            # Keep this for compatibility with existing project code
-            "general_requirements": key_general_requirements
+            "general_requirements": general_requirements
         }
 
     def extract_all(self) -> dict:

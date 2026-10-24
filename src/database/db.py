@@ -50,9 +50,17 @@ class JobDataBase:
 
                 date_found TEXT,
 
-                date_applied TEXT
+                date_applied TEXT,
+
+                date_application_attempted TEXT
             )
             """)
+        cursor.execute("PRAGMA table_info(jobs)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "date_application_attempted" not in columns:
+            cursor.execute(
+                "ALTER TABLE jobs ADD COLUMN date_application_attempted TEXT"
+            )
         connection.commit()
         connection.close()
 

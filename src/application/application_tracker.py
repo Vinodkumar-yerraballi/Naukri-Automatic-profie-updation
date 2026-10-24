@@ -20,8 +20,16 @@ class ApplicationTracker:
 
     def mark_applied(self,job_url:str):
         """
-        Mark a job as waiting for user Approved.
+        Mark a job as applied and record the application date.
         """
+        self.repository.mark_applied(job_url)
+
+    def mark_application_unconfirmed(self,job_url:str):
+        """Prevent an uncertain submission from being attempted twice."""
+        self.repository.mark_application_unconfirmed(job_url)
+
+    def mark_already_applied(self,job_url:str):
+        """Record an application that Naukri reports as already submitted."""
         self.repository.update_status(job_url,"APPLIED")
 
     def mark_rejected(self,job_url:str):

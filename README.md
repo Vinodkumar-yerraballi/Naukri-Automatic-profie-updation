@@ -5,10 +5,11 @@ candidate profile, and prepare job-specific resume drafts for your review. The
 project can also upload a changed source resume to your Naukri account after
 you sign in locally.
 
-This is a **review assistant**, not an auto-apply bot. It does not submit job
-applications or automatically edit your Naukri headline, skills, work history,
-education, projects, or certifications. You decide what is accurate and what
-to submit.
+This is a **review-first** job assistant. It requires your terminal approval
+for each job before attempting a supported one-step Naukri application. It
+does not automatically edit your headline, skills, work history, education,
+projects, or certifications; review the profile proposal and make those
+changes manually.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -20,11 +21,16 @@ to submit.
 2. Filters out listings outside the configured posting-age window.
 3. Scores jobs against your skills, experience, location, education, and
    preferences.
-4. Stores matching jobs locally and lets you review the queue.
-5. Can generate a separate DOCX resume draft for a suitable job.
-6. Can upload your changed source PDF to your signed-in Naukri profile.
-7. Can prepare a profile-update proposal as JSON for you to review and apply
+4. Combines skills found in Naukri's key-skills list and the full job
+   description, and skips descriptions that contain recognized page-interface
+   text.
+5. Stores matching jobs locally and lets you review the queue.
+6. Can generate a separate DOCX resume draft for a suitable job.
+7. Can upload your changed source PDF to your signed-in Naukri profile.
+8. Can prepare a profile-update proposal as JSON for you to review and apply
    manually.
+9. With `application.auto_apply: true`, can attempt a supported one-step
+   application after you approve that specific job in the terminal.
 
 ## Project structure
 
@@ -235,9 +241,24 @@ profile fields.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.
+- Keep the scheduled run attached to an interactive PowerShell window so you
+  can review and approve individual jobs. `auto_apply: true` does not skip
+  this approval.
+- Job skill matching uses both Naukri's key-skills list and skill terms found
+  in the description. Recognized page-interface contamination is reported and
+  the affected listing is skipped rather than scored from unreliable text.
 - Matching listings are stored in the local database and can be reviewed.
-  Approving a listing in the queue records your review decision; it does **not**
-  apply for the job.
+  Each job must be approved individually in the interactive terminal queue.
+- With `application.auto_apply: true`, an approved job can be submitted using
+  Naukri's single, clearly identified **Apply** or **Apply now** action. The
+  app does not fill multi-step forms, apply on external sites, or bypass
+  login/CAPTCHA/OTP checks. If submission cannot be confirmed, it stops and
+  asks you to check Naukri before retrying. Set `auto_apply: false` to record
+  approvals without attempting submission. The tailored DOCX is not
+  automatically attached; Naukri uses the resume already on your profile.
+  The configured daily limit counts confirmed and uncertain attempts.
+- `matching.minimum_score` is this project's job-relevance score, not a
+  universal ATS score. No ATS percentage (including 90%) can be guaranteed.
 - Where a job description is available and the job meets the configured
   criteria, a job-specific resume draft can be saved as a DOCX under
   `data\processed\resumes`.
@@ -267,8 +288,10 @@ profile fields.
    include a clear README, setup instructions, screenshots or sample outputs,
    tests, and a short explanation of your own contribution. Do not claim
    production impact or metrics you did not measure.
-7. **Apply manually.** Use the reviewed resume and your own judgment to apply
-   on Naukri. This project does not submit applications.
+7. **Approve each application carefully.** Check the role, employer, job
+   description, and generated resume draft before approving it in the
+   interactive queue. If Naukri presents a multi-step or external application,
+   complete it yourself and verify the final status on Naukri.
 
 ## Privacy and safe handling
 

@@ -127,6 +127,62 @@ class JobRepository:
         )
         connection.commit()
         connection.close()
+
+    def mark_applied(self, job_url: str) -> None:
+        """Record a confirmed application and its local timestamp."""
+        connection = self.database.get_connection()
+        cursor = connection.cursor()
+        applied_at = datetime.now().astimezone().isoformat()
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET status = ?, date_applied = ?, date_application_attempted = ?
+            WHERE job_url = ?
+            """,
+            ("APPLIED", applied_at, applied_at, job_url),
+        )
+        connection.commit()
+        connection.close()
+
+    def mark_application_unconfirmed(self, job_url: str) -> None:
+        """Record an uncertain submission attempt to prevent silent retries."""
+        connection = self.database.get_connection()
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET status = ?, date_application_attempted = ?
+            WHERE job_url = ?
+            """,
+            (
+                "APPLICATION_UNCONFIRMED",
+                datetime.now().astimezone().isoformat(),
+                job_url,
+            ),
+        )
+        connection.commit()
+        connection.close()
+
+    def get_application_attempt_count_today(self) -> int:
+        """Return confirmed and uncertain submission attempts made today."""
+        connection = self.database.get_connection()
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM jobs
+            WHERE status IN (?, ?)
+            AND substr(date_application_attempted, 1, 10) = ?
+            """,
+            (
+                "APPLIED",
+                "APPLICATION_UNCONFIRMED",
+                datetime.now().astimezone().date().isoformat(),
+            ),
+        )
+        count = cursor.fetchone()[0]
+        connection.close()
+        return count
     def get_all_jobs(self):
         """
         Return all jobs stored in the database.

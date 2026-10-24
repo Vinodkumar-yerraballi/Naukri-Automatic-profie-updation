@@ -2,22 +2,11 @@ from src.config.config_manager import ConfigManager
 
 class PermissionManager:
     """
-    Controls whether a job is allowed to proceed
-    to the application stage.
+    Checks job eligibility and routes eligible jobs for human review.
     """
     def __init__(self):
-        config_manger=ConfigManager()
-        self.minimum_score=(config_manger.get_minimum_score())
-        application_config=(config_manger.get_application_config())
-        self.auto_apply=application_config.get(
-            "auto_apply",False
-        )
-        self.application_mode=application_config.get(
-            "mode","review"
-        )
-        self.maximum_applications_per_day=application_config.get(
-            "maximum_applications_per_day",15
-        )
+        config_manager = ConfigManager()
+        self.minimum_score = config_manager.get_minimum_score()
     def check_score(self,score:float)->bool:
         """
         Check whether the job meets the minimum score.
@@ -27,17 +16,11 @@ class PermissionManager:
         """
         Determine whether the job requires user review.
         """
-        if not self.check_score(score):
-            return False
-        return not self.auto_apply
+        return self.check_score(score)
     def get_permission_status(self,score:float)->str:
         """
         Return the current permission status.
         """
         if not self.check_score(score):
             return "REJECTED"
-        if self.auto_apply:
-            return "APPROVE"
         return "REVIEW"
-
-

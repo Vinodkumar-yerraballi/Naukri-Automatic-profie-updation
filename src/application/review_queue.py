@@ -79,10 +79,18 @@ class ReviewQueue:
         print("\n==================================")
         print(f"Total jobs waiting for review: {len(jobs)}")
 
-    def review_jobs_interactively(self) -> None:
+    def review_jobs_interactively(
+        self,
+        submission_callback=None,
+        resume_drafts: dict[str, str] | None = None,
+    ) -> None:
         """
-        Allow the user to manually review pending jobs.
+        Require a terminal decision for each pending job.
+
+        If configured, submit an approved job only after the user explicitly
+        approves it in this review session.
         """
+        resume_drafts = resume_drafts or {}
 
         while True:
             jobs = self.get_pending_jobs()
@@ -130,9 +138,25 @@ class ReviewQueue:
             print(f"Match Score: {selected_job.get('match_score', 0)}")
             print(f"Source: {selected_job.get('source', 'Unknown')}")
             print(f"URL: {selected_job.get('job_url', '')}")
+            description = selected_job.get("description") or ""
+            if description:
+                print("\nJob description:")
+                print(description[:2000])
+                if len(description) > 2000:
+                    print("[Description shortened]")
+            draft_path = resume_drafts.get(selected_job.get("job_url", ""))
+            if draft_path:
+                print(f"\nTailored resume draft: {draft_path}")
+            else:
+                print("\nNo tailored resume draft is recorded for this job.")
+            if submission_callback:
+                print(
+                    "Naukri will use the resume already on your profile; "
+                    "the DOCX draft is not automatically attached."
+                )
             print("==================================")
 
-            print("\n[A] Approve")
+            print("\n[A] Approve this job")
             print("[R] Reject")
             print("[S] Skip")
 
@@ -142,7 +166,31 @@ class ReviewQueue:
                 success = self.approve_job(selected_job["job_url"])
 
                 if success:
-                    print("\nJob approved successfully.")
+                    print("\nJob approved for this session.")
+                    if submission_callback:
+                        result = submission_callback(selected_job)
+                        if result.get("status") in {
+                            "LIMIT_REACHED",
+                            "LOGIN_REQUIRED",
+                            "MANUAL_ACTION_REQUIRED",
+                            "SECURITY_CHALLENGE",
+                        }:
+                            self.application_tracker.mark_review(
+                                selected_job["job_url"]
+                            )
+                        print(
+                            "Application result: "
+                            f"{result.get('status', 'UNKNOWN')}"
+                        )
+                        if result.get("message"):
+                            print(result["message"])
+                        if result.get("status") in {
+                            "LIMIT_REACHED",
+                            "LOGIN_REQUIRED",
+                            "MANUAL_ACTION_REQUIRED",
+                            "SECURITY_CHALLENGE",
+                        }:
+                            return
                 else:
                     print("\nUnable to approve this job.")
 

@@ -1,5 +1,4 @@
 from src.application.permission import PermissionManager
-from src.application.apply_engine import ApplyEngine
 from src.application.application_tracker import ApplicationTracker
 from src.application.captcha_handler import CaptchaHandler
 from src.notification.notifier import Notifier
@@ -21,11 +20,6 @@ class ApplicationWorkflow:
         notifier
     ):
         self.permission_manager = permission_manager
-
-        self.apply_engine = ApplyEngine(
-            permission_manager
-        )
-
         self.application_tracker = application_tracker
         self.captcha_handler = captcha_handler
         self.notifier = notifier
@@ -74,29 +68,7 @@ class ApplicationWorkflow:
                 )
             }
 
-        # Job requires user review
-
-        if permission_status == "REVIEW":
-
-            self.application_tracker.mark_review(
-                job_url
-            )
-
-            self.notifier.notify_review_required(
-                job_title,
-                company,
-                score
-            )
-
-            return {
-                "success": False,
-                "status": "REVIEW",
-                "message": (
-                    "User review is required."
-                )
-            }
-
-        # Step 2: Check CAPTCHA / OTP
+        # Security checks require manual action before this job can be reviewed.
 
         challenge_detected = (
             self.captcha_handler.detect_challenge(
@@ -123,45 +95,18 @@ class ApplicationWorkflow:
                 )
             }
 
-        # Step 3: Check whether application can proceed
-
-        if not self.apply_engine.can_apply(job):
-
-            return {
-                "success": False,
-                "status": "NOT_APPROVED",
-                "message": (
-                    "Job has not been approved "
-                    "for application."
-                )
-            }
-
-        # Step 4: Prepare application
-
-        application = (
-            self.apply_engine.prepare_application(
-                job
-            )
-        )
-
-        if not application["success"]:
-
-            return application
-
-        # Step 5: Mark as approved
-
-        self.application_tracker.mark_approved(
+        self.application_tracker.mark_review(
             job_url
         )
 
-        self.notifier.notify_application_status(
+        self.notifier.notify_review_required(
             job_title,
             company,
-            "APPROVED"
+            score
         )
 
         return {
-            "success": True,
-            "status": "READY",
-            "application": application
+            "success": False,
+            "status": "REVIEW",
+            "message": "Explicit user approval is required before applying."
         }

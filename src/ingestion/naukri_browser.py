@@ -1,7 +1,8 @@
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 from pathlib import Path
 import re
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 
 class NaukriBrowser:
@@ -16,6 +17,13 @@ class NaukriBrowser:
 
     CAPTCHA/OTP/security challenges require manual action.
     """
+
+    DESCRIPTION_CONTAMINATION_MARKERS = (
+        "resdexai",
+        "go to review page",
+        "job posting form filled",
+        "no profiles saved for later",
+    )
 
     def __init__(self, headless: bool = False):
         self.headless = headless
@@ -156,6 +164,190 @@ class NaukriBrowser:
                 "The profile page did not confirm the resume upload. "
                 "Check your Naukri profile manually before retrying."
             )
+
+    def submit_application(self, job: dict) -> dict:
+        """Submit a one-step Naukri application after explicit user approval."""
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        job_url = job.get("job_url")
+        if not job_url:
+            raise ValueError("A job URL is required to submit an application.")
+        parsed_url = urlparse(job_url)
+        if (
+            parsed_url.scheme != "https"
+            or not self._is_naukri_host(parsed_url.hostname)
+        ):
+            raise ValueError("Refusing to apply outside naukri.com.")
+
+        self.page.goto(
+            job_url,
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        self.page.wait_for_timeout(3000)
+
+        if not self._is_naukri_host(urlparse(self.page.url).hostname):
+            return {
+                "status": "MANUAL_ACTION_REQUIRED",
+                "message": (
+                    "The job opened outside Naukri. No application action "
+                    "was attempted."
+                ),
+            }
+
+        if self.detect_security_challenge():
+            return {
+                "status": "SECURITY_CHALLENGE",
+                "message": (
+                    "Naukri requires a security check. Complete it manually; "
+                    "no application action was attempted."
+                ),
+            }
+
+        current_url = self.page.url.lower()
+        page_text = self.page.locator("body").inner_text()
+        lowered_text = page_text.lower()
+        if "login" in current_url or "login to naukri" in lowered_text:
+            return {
+                "status": "LOGIN_REQUIRED",
+                "message": (
+                    "The saved Naukri session is not signed in. Sign in "
+                    "manually, then review this job again."
+                ),
+            }
+
+        expected_title = str(job.get("title") or "").strip()
+        if not expected_title or expected_title.casefold() not in lowered_text:
+            return {
+                "status": "MANUAL_ACTION_REQUIRED",
+                "message": (
+                    "The opened page does not clearly match the approved "
+                    "job title. No application action was attempted."
+                ),
+            }
+
+        if re.search(
+            r"\b(?:you have already applied|application submitted "
+            r"successfully|you have successfully applied)\b",
+            lowered_text,
+        ):
+            return {
+                "status": "ALREADY_APPLIED",
+                "message": (
+                    "Naukri indicates that this job was already applied to."
+                ),
+            }
+
+        applied_controls = []
+        for role in ("button", "link"):
+            locator = self.page.get_by_role(
+                role,
+                name=re.compile(r"^applied$", re.IGNORECASE),
+            )
+            for index in range(locator.count()):
+                control = locator.nth(index)
+                if control.is_visible():
+                    applied_controls.append(control)
+        if applied_controls:
+            return {
+                "status": "ALREADY_APPLIED",
+                "message": (
+                    "Naukri indicates that this job was already applied to."
+                ),
+            }
+
+        apply_pattern = re.compile(r"^apply(?: now)?$", re.IGNORECASE)
+        actions = []
+        for role in ("button", "link"):
+            locator = self.page.get_by_role(role, name=apply_pattern)
+            for index in range(locator.count()):
+                action = locator.nth(index)
+                if action.is_visible() and action.is_enabled():
+                    actions.append(action)
+
+        if len(actions) != 1:
+            return {
+                "status": "MANUAL_ACTION_REQUIRED",
+                "message": (
+                    "Could not identify exactly one supported Apply action. "
+                    "Open the job and apply manually."
+                ),
+            }
+
+        try:
+            actions[0].click(timeout=10000)
+            self.page.wait_for_timeout(3000)
+            if self.detect_security_challenge():
+                return {
+                    "status": "UNCONFIRMED",
+                    "message": (
+                        "A security check appeared after the Apply action. "
+                        "Check your Naukri profile before retrying."
+                    ),
+                }
+
+            current_host = urlparse(self.page.url).hostname
+            if not self._is_naukri_host(current_host):
+                return {
+                    "status": "UNCONFIRMED",
+                    "message": (
+                        "The Apply action opened an external application "
+                        "site. No further interaction was attempted; check "
+                        "the site manually."
+                    ),
+                }
+
+            confirmation_text = (
+                self.page.locator("body").inner_text().lower()
+            )
+            confirmation_phrases = (
+                "application submitted successfully",
+                "you have successfully applied",
+                "your application has been submitted",
+                "you have already applied",
+            )
+            applied_control = self.page.get_by_role(
+                "button",
+                name=re.compile(r"^applied$", re.IGNORECASE),
+            )
+            if (
+                any(
+                    phrase in confirmation_text
+                    for phrase in confirmation_phrases
+                )
+                or applied_control.count() > 0
+            ):
+                return {
+                    "status": "APPLIED",
+                    "message": "Naukri confirmed the application.",
+                }
+        except PlaywrightError:
+            return {
+                "status": "UNCONFIRMED",
+                "message": (
+                    "The Apply action did not complete cleanly. Check your "
+                    "Naukri profile before retrying."
+                ),
+            }
+
+        return {
+            "status": "UNCONFIRMED",
+            "message": (
+                "Naukri did not clearly confirm submission. Check your "
+                "profile manually; this job will not be retried automatically."
+            ),
+        }
+
+    @staticmethod
+    def _is_naukri_host(hostname: str | None) -> bool:
+        return bool(
+            hostname
+            and (
+                hostname.lower() == "naukri.com"
+                or hostname.lower().endswith(".naukri.com")
+            )
+        )
 
     def search_jobs(
         self,
@@ -693,11 +885,14 @@ class NaukriBrowser:
             description = ""
 
             description_selectors = [
-                "[class*='job-desc']",
                 "div.dang-inner-html",
+                "div.styles_job-desc-container__tx3BB",
                 "div.job-desc",
-                "section.job-desc"
+                "section.job-desc",
+                "[class*='jobDescription']",
+                "[class*='job-desc']",
             ]
+            description_issues = []
 
             for selector in description_selectors:
 
@@ -705,17 +900,24 @@ class NaukriBrowser:
                     selector
                 )
 
-                if locator.count() > 0:
+                if locator.count() == 0:
+                    continue
 
-                    text = locator.first.inner_text()
+                text = locator.first.inner_text().strip()
 
-                    if text.strip():
+                if not text:
+                    continue
 
-                        description = text.strip()
+                issues = self._description_quality_issues(text)
+                if not description or (description_issues and not issues):
+                    description = text
+                    description_issues = issues
 
-                        break
+                if not issues:
+                    break
 
             job["job_description"] = description
+            job["description_quality_issues"] = description_issues
 
             # -----------------------------------------
             # Employment type
@@ -831,6 +1033,15 @@ class NaukriBrowser:
             job["extraction_error"] = str(error)
 
             return job
+
+    @classmethod
+    def _description_quality_issues(cls, description: str) -> list[str]:
+        lowered_description = description.lower()
+        return [
+            f"Page interface text detected: {marker}"
+            for marker in cls.DESCRIPTION_CONTAMINATION_MARKERS
+            if marker in lowered_description
+        ]
 
     def close(self):
         """Close browser and Playwright."""
