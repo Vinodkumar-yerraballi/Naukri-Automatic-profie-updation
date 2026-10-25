@@ -94,6 +94,12 @@ limit, and related preferences, edit:
 Changing these YAML files changes the app's search/matching preferences. It
 does not itself change the corresponding fields on Naukri.
 
+The configured job search covers Data Analyst, Data Scientist, Business
+Intelligence, reporting, and related machine-learning roles. It prioritizes
+searching every configured role each run, rotates locations when the daily
+search limit is reached, and passes the configured experience and posting-age
+filters to Naukri (currently 0-2 years and posted within 24 hours).
+
 
 REVIEW AND APPLY FOR JOBS
 -------------------------

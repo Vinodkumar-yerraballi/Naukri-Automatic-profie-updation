@@ -2,7 +2,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 from pathlib import Path
 import re
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus, urlencode, urlparse
 
 
 class NaukriBrowser:
@@ -354,6 +354,7 @@ class NaukriBrowser:
         role: str,
         location: str = "",
         posted_within_hours: int | None = None,
+        experience: dict[str, int] | None = None,
     ):
         """
         Search Naukri for a role and location.
@@ -380,11 +381,25 @@ class NaukriBrowser:
                 f"{role_query}-jobs"
             )
 
+        query_params = {}
+        if experience is not None:
+            minimum = int(experience.get("minimum", 0))
+            maximum = int(experience.get("maximum", 2))
+            if minimum < 0 or maximum < minimum:
+                raise ValueError(
+                    "experience must contain a non-negative minimum "
+                    "no greater than its maximum."
+                )
+            query_params["experience"] = minimum
+
         if posted_within_hours is not None:
             if posted_within_hours <= 0:
                 raise ValueError("posted_within_hours must be positive.")
             if posted_within_hours <= 24:
-                url += "?jobAge=1"
+                query_params["jobAge"] = 1
+
+        if query_params:
+            url += "?" + urlencode(query_params)
 
         print("\nOpening search URL:")
         print(url)

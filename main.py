@@ -20,6 +20,31 @@ from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
 
 
+def _select_search_queries(
+    roles: list[str],
+    locations: list[str],
+    max_searches: int,
+    day_offset: int,
+) -> list[tuple[str, str]]:
+    """Prioritize searching every role, then expand location coverage."""
+    selected_queries = []
+    selected_set = set()
+
+    for location_round in range(len(locations)):
+        for role_index, role in enumerate(roles):
+            location_index = (
+                day_offset + role_index + location_round
+            ) % len(locations)
+            query = (role, locations[location_index])
+            if query not in selected_set:
+                selected_queries.append(query)
+                selected_set.add(query)
+            if len(selected_queries) >= max_searches:
+                return selected_queries
+
+    return selected_queries
+
+
 def main(run_review=True):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
@@ -127,31 +152,29 @@ def main(run_review=True):
                 "At least one target role and location must be configured."
             )
 
-        search_queries = [
-            (role, location)
-            for role in roles
-            for location in locations
-        ]
         max_searches = max(
             1,
             int(
                 search_config.get(
-                    "max_searches_per_run", len(search_queries)
+                    "max_searches_per_run",
+                    len(roles) * len(locations),
                 )
             ),
         )
-        first_query = date.today().toordinal() % len(search_queries)
-        rotated_queries = (
-            search_queries[first_query:] + search_queries[:first_query]
+        selected_queries = _select_search_queries(
+            roles=roles,
+            locations=locations,
+            max_searches=max_searches,
+            day_offset=date.today().toordinal(),
         )
-        selected_queries = rotated_queries[:max_searches]
 
-        # Rotate through configured role/location pairs to keep each daily run
-        # bounded while covering all configured searches over time.
+        # Search every configured role first, then rotate through additional
+        # locations while keeping the daily search count bounded.
         jobs_by_url = {}
         posted_within_hours = int(
             search_config.get("posted_within_hours", 24)
         )
+        experience = search_config.get("experience")
         freshness_matcher = FreshnessMatcher()
         for index, (role, location) in enumerate(selected_queries, start=1):
             print(
@@ -162,6 +185,7 @@ def main(run_review=True):
                 role=role,
                 location=location,
                 posted_within_hours=posted_within_hours,
+                experience=experience,
             )
             if browser.detect_security_challenge():
                 print(
