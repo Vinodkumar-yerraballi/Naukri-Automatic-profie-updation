@@ -28,9 +28,11 @@ def select_search_queries(roles, locations, max_searches):
     if not roles or not locations or max_searches < 1:
         return []
     queries = []
-    for location in locations:
-        for role in roles:
-            item = (role, location)
+    day_offset = datetime.now(IST).date().toordinal()
+    for location_round in range(len(locations)):
+        for role_index, role in enumerate(roles):
+            location_index = (day_offset + role_index + location_round) % len(locations)
+            item = (role, locations[location_index])
             if item not in queries:
                 queries.append(item)
             if len(queries) >= max_searches:
