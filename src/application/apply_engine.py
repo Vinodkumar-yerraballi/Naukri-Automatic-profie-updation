@@ -1,20 +1,24 @@
 class ApplyEngine:
     """
-    Controls the application workflow for approved jobs.
+    Controls the application workflow for explicitly approved jobs.
     """
-    def __init__(self,permission_manager):
-        self.permission_manager=permission_manager
 
-    def can_apply(self,job:dict)->bool:
+    def __init__(self, permission_manager):
+        self.permission_manager = permission_manager
+
+    def can_apply(self, job: dict) -> bool:
         """
-        Check whether the job is eligible for application.
+        Require both an eligible score and explicit human approval.
+        A score alone must never authorize an application.
         """
-        score=job.get("match_score",0)
-        status=self.permission_manager.get_permission_status(
-            score
+        score = job.get("match_score", 0)
+        permission_status = self.permission_manager.get_permission_status(score)
+        return (
+            permission_status != "REJECTED"
+            and job.get("status") == "APPROVED"
         )
-        return status =="APPROVE"
-    def prepare_application(self,job:dict)->dict:
+
+    def prepare_application(self, job: dict) -> dict:
         """
         Prepare an application request for an approved job.
 
@@ -24,7 +28,7 @@ class ApplyEngine:
             return {
                 "success": False,
                 "status": "NOT_APPROVED",
-                "message": "Job has not been approved for application."
+                "message": "Job must meet the score threshold and be explicitly approved.",
             }
         return {
             "success": True,
@@ -32,5 +36,5 @@ class ApplyEngine:
             "job_url": job.get("job_url"),
             "company": job.get("company"),
             "job_title": job.get("title"),
-            "message": "Job is ready for the application workflow."
+            "message": "Job is ready for the application workflow.",
         }
