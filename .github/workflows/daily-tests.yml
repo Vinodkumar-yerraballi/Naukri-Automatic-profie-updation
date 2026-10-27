@@ -1,0 +1,42 @@
+name: Daily project checks
+
+on:
+  schedule:
+    # 09:00 Asia/Kolkata (UTC is 03:30)
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Run deterministic unit tests
+        run: |
+          python -m pytest -q \
+            tests/test_apply_engine.py \
+            tests/test_daily_scheduler.py \
+            tests/test_freshness_matcher.py \
+            tests/test_education_matcher.py
