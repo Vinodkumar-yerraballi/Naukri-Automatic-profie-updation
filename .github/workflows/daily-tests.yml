@@ -1,4 +1,4 @@
-name: Daily project checks
+name: Daily project checks and job review report
 
 on:
   schedule:
@@ -16,7 +16,7 @@ permissions:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,10 +33,54 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
 
-      - name: Run deterministic unit tests
+      - name: Run focused deterministic unit tests
         run: |
           python -m pytest -q \
             tests/test_apply_engine.py \
             tests/test_daily_scheduler.py \
             tests/test_freshness_matcher.py \
-            tests/test_education_matcher.py
+            tests/test_education_matcher.py \
+            tests/test_daily_job_report.py
+
+  daily-job-report:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Collect fresh jobs and generate review-only report
+        id: report
+        continue-on-error: true
+        run: python -m scripts.daily_job_report
+
+      - name: Upload CSV, Markdown, and JSON reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-naukri-job-report-${{ github.run_id }}
+          path: data/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Mark report job failed if collection failed
+        if: steps.report.outcome == 'failure'
+        run: |
+          echo "Job report collection failed. Check the step logs and artifact if available."
+          exit 1
