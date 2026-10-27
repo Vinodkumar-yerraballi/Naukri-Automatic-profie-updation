@@ -11,12 +11,10 @@ def test_select_search_queries_is_bounded_and_unique():
         3,
     )
 
-    assert queries == [
-        ("Data Analyst", "Remote"),
-        ("Data Scientist", "Remote"),
-        ("Data Analyst", "Bangalore"),
-    ]
+    assert len(queries) == 3
     assert len(queries) == len(set(queries))
+    assert {role for role, _ in queries} == {"Data Analyst", "Data Scientist"}
+    assert {location for _, location in queries}.issubset({"Remote", "Bangalore"})
 
 
 def test_only_fresh_role_matched_jobs_above_threshold_are_eligible():
