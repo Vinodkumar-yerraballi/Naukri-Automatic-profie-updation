@@ -49,7 +49,7 @@ application:
 
   mode: review
 
-  auto_apply: true
+  auto_apply: false
 
   maximum_applications_per_day: 15
 
