@@ -43,6 +43,7 @@ def is_review_eligible(job, minimum_score):
     return (
         job.get("fresh") is True
         and job.get("role_match") is True
+        and job.get("description_available") is True
         and isinstance(job.get("match_score"), (int, float))
         and job["match_score"] >= minimum_score
     )
