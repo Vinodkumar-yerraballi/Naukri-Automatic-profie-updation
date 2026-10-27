@@ -300,7 +300,8 @@ def main(run_review=True):
             ),
             candidate_max_experience=(
                 candidate_max_experience
-            )
+            ),
+            candidate_education=profile_manager.get_education()
         )
 
         # ==================================================
