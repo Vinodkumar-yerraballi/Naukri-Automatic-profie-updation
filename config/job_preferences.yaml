@@ -99,6 +99,6 @@ schedule:
 
   enabled: true
 
-  time: "09:30"
+  time: "09:00"
 
   timezone: Asia/Kolkata
