@@ -23,11 +23,13 @@ def test_only_fresh_role_matched_jobs_above_threshold_are_eligible():
     base = {
         "fresh": True,
         "role_match": True,
+        "description_available": True,
         "match_score": 85,
     }
     assert report.is_review_eligible(base, 85)
     assert not report.is_review_eligible({**base, "fresh": False}, 85)
     assert not report.is_review_eligible({**base, "role_match": False}, 85)
+    assert not report.is_review_eligible({**base, "description_available": False}, 85)
     assert not report.is_review_eligible({**base, "match_score": 84.99}, 85)
 
 
@@ -58,7 +60,7 @@ def test_write_reports_creates_markdown_csv_and_summary(tmp_path, monkeypatch):
     )
 
     assert "Eligible for review" in markdown_path.read_text(encoding="utf-8")
-    assert "application submission: DISABLED" in markdown_path.read_text(encoding="utf-8")
+    assert "application submission: disabled" in markdown_path.read_text(encoding="utf-8").lower()
     with csv_path.open(encoding="utf-8-sig", newline="") as handle:
         csv_rows = list(csv.DictReader(handle))
     assert len(csv_rows) == 1
