@@ -1,0 +1,10 @@
+{
+  "run_at_ist": "2026-10-29T03:52:09.590031+05:30",
+  "status": "ACCESS_DENIED",
+  "message": "Naukri denied access to the search page. The run stopped without retrying or attempting to bypass the denial.",
+  "fresh_jobs_evaluated": 0,
+  "eligible_for_review": 0,
+  "application_submission_enabled": false,
+  "markdown_report": "data\\reports\\daily_jobs_2026-10-29_03-52-09_IST.md",
+  "csv_report": "data\\reports\\daily_jobs_2026-10-29_03-52-09_IST.csv"
+}

@@ -1,6 +1,9 @@
 """Generate a fresh-job review report without submitting applications."""
 import csv
 import json
+import random
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -21,6 +24,11 @@ CSV_FIELDS = [
     "match_score", "eligible_for_review", "matched_role", "matched_skills",
     "job_url", "description_available", "notes",
 ]
+
+
+def pause(low=3.0, high=8.0):
+    """Short random pause between page loads to avoid bursts of requests."""
+    time.sleep(random.uniform(low, high))
 
 
 def select_search_queries(roles, locations, max_searches):
@@ -52,7 +60,7 @@ def is_review_eligible(job, minimum_score):
 
 
 def write_reports(rows, run_time, run_status, message=""):
-    """Write Markdown and CSV reports for GitHub Actions artifact upload."""
+    """Write Markdown, CSV and JSON reports."""
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = run_time.strftime("%Y-%m-%d_%H-%M-%S")
     csv_path = REPORT_DIR / f"daily_jobs_{stamp}_IST.csv"
@@ -125,9 +133,11 @@ def run_report():
     try:
         config = ConfigManager()
         search = config.get_job_search_config()
+        profile_config = config.get_naukri_profile_config()
         profile = ProfileManager("config/profile.yaml")
         profile.load_profile()
-        experience = search.get("experience", {})
+        # FIX: `experience:` left empty in YAML gives None, not {}
+        experience = search.get("experience") or {}
         freshness_limit = int(search.get("posted_within_hours", 24))
         minimum_score = config.get_minimum_score()
 
@@ -147,8 +157,15 @@ def run_report():
             max(1, int(search.get("max_searches_per_run", 8))),
         )
 
-        browser = NaukriBrowser(headless=True)
-        browser.start()
+        # FIX: use your saved, signed-in browser profile in a visible window
+        # (run `python main.py --setup-naukri-session` once first).
+        browser = NaukriBrowser(headless=False)
+        browser.start_persistent(
+            profile_config.get(
+                "browser_profile_directory",
+                "data/naukri_browser_profile",
+            )
+        )
         cards_by_url = {}
 
         for role, location in queries:
@@ -182,11 +199,13 @@ def run_report():
                 url = card.get("job_url", "").strip()
                 if url.startswith("https://www.naukri.com/"):
                     cards_by_url.setdefault(url, card)
+            pause()
 
         if status == "SUCCESS":
             cards = list(cards_by_url.values())[:MAX_DETAIL_PAGES]
             for card in cards:
                 details = browser.extract_job_details(dict(card))
+                pause(2.0, 5.0)
                 if details.get("security_challenge"):
                     status = "MANUAL_ACTION_REQUIRED"
                     message = (
@@ -267,3 +286,5 @@ if __name__ == "__main__":
     except SystemExit as error:
         if error.code:
             print(f"\nDaily job report stopped: {error.code}")
+            # FIX: exit non-zero so schedulers/CI don't report failure as success
+            sys.exit(1)

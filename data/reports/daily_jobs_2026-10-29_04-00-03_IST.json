@@ -1,0 +1,10 @@
+{
+  "run_at_ist": "2026-10-29T04:00:03.674848+05:30",
+  "status": "SUCCESS",
+  "message": "",
+  "fresh_jobs_evaluated": 20,
+  "eligible_for_review": 1,
+  "application_submission_enabled": false,
+  "markdown_report": "data\\reports\\daily_jobs_2026-10-29_04-00-03_IST.md",
+  "csv_report": "data\\reports\\daily_jobs_2026-10-29_04-00-03_IST.csv"
+}

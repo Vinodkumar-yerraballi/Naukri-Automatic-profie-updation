@@ -98,37 +98,61 @@ def main():
             job_metadata=job,
         )
 
-        
         print("\n========== COLLECTOR RESULT ==========")
-        print(f"Inserted:    {result.get('inserted')}")
-        print(f"Updated:     {result.get('updated')}")
+        print(f"Inserted: {result.get('inserted')}")
+        print(f"Updated:  {result.get('updated')}")
+        print(f"Skipped:  {result.get('skipped', False)}")
 
-        job_result = result.get("job", {})
+        job_result = result.get("job") or {}
 
         print(f"Match Score: {job_result.get('match_score')}")
-        print(f"Status:      {job_result.get('status', 'Not available')}")
 
-        print("\nAvailable job fields:")
-        print(list(job_result.keys()))
+        print("\n========== DATABASE STATUS ==========")
 
+        job_url = job_result.get("job_url") or job.get("job_url")
 
-        evaluation = result["evaluation"]
-        skill_match = evaluation["skill_match"]
+        stored_job = (
+            repository.get_job_by_url(job_url)
+            if job_url
+            else None
+        )
+
+        if stored_job:
+            print(f"Stored Status: {stored_job.get('status', 'UNKNOWN')}")
+            print(f"Stored Match Score: {stored_job.get('match_score')}")
+        else:
+            print("Job was not found in the database.")
+
+        evaluation = result.get("evaluation")
+
+        if evaluation is None:
+            print("\nJob was not evaluated or was skipped.")
+            print(
+                f"Skip reason: "
+                f"{result.get('skip_reason', 'Not provided')}"
+            )
+            print(
+                f"Experience match: "
+                f"{result.get('experience_match', 'Not provided')}"
+            )
+            return
+
+        skill_match = evaluation.get("skill_match", {})
 
         print("\nMatched Skills:")
-        print(skill_match["matched_skills"])
+        print(skill_match.get("matched_skills", []))
 
         print("\nMissing Skills:")
-        print(skill_match["missing_skills"])
+        print(skill_match.get("missing_skills", []))
 
         print("\nSkill Match Percentage:")
-        print(skill_match["match_percentage"])
+        print(skill_match.get("match_percentage", 0))
 
         print("\nFinal Score:")
-        print(evaluation["final_score"])
+        print(evaluation.get("final_score"))
 
         print("\nScore Category:")
-        print(evaluation["score_category"])
+        print(evaluation.get("score_category"))
 
     finally:
         browser.close()

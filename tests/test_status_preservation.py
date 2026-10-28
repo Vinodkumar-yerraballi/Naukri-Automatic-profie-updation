@@ -1,9 +1,12 @@
+
+import pytest
+
 from src.database.db import JobDataBase
 from src.database.job_repository import JobRepository
 
 
-def main():
-    database_path = "data/test_status.db"
+def test_existing_review_status_is_preserved_after_job_update(tmp_path):
+    database_path = str(tmp_path / "test_status.db")
 
     database = JobDataBase(database_path)
     database.create_table()
@@ -12,7 +15,6 @@ def main():
 
     job_url = "https://test.com/status-preservation"
 
-    # Add the job
     job = {
         "title": "Data Analyst",
         "company": "Test Company",
@@ -23,18 +25,12 @@ def main():
         "skills": ["Python", "SQL"],
         "match_score": 90,
         "status": "FOUND",
-        "source": "TEST"
+        "source": "TEST",
     }
 
     repository.add_job(job)
-
-    # Manually move job to REVIEW
     repository.update_status(job_url, "REVIEW")
 
-    print("Before update:")
-    print(repository.get_job_by_url(job_url))
-
-    # Simulate a new job update from JobCollector
     updated_job = {
         "title": "Data Analyst - Updated",
         "company": "Updated Company",
@@ -44,14 +40,14 @@ def main():
         "description": "Updated description",
         "skills": ["Python", "SQL", "Power BI"],
         "match_score": 95,
-        "source": "Naukri"
+        "source": "Naukri",
     }
 
-    repository.update_job(updated_job)
+    assert repository.update_job(updated_job) is True
 
-    print("\nAfter update:")
-    print(repository.get_job_by_url(job_url))
+    stored_job = repository.get_job_by_url(job_url)
 
-
-if __name__ == "__main__":
-    main()
+    assert stored_job is not None
+    assert stored_job["title"] == "Data Analyst - Updated"
+    assert stored_job["match_score"] == 95
+    assert stored_job["status"] == "REVIEW"
