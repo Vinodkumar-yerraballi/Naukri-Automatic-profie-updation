@@ -34,7 +34,7 @@ job_search:
 
 matching:
 
-  minimum_score: 85
+  minimum_score: 75
 
   role_weight: 25
   skill_weight: 30

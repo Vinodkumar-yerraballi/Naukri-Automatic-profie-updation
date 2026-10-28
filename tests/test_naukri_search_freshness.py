@@ -20,6 +20,9 @@ class FakePage:
     def title(self):
         return "Job search"
 
+    def locator(self, selector):
+        raise AssertionError(f"Unexpected locator request: {selector}")
+
 
 def test_search_jobs_requests_experience_and_last_day_filters():
     browser = NaukriBrowser()
@@ -43,6 +46,21 @@ def test_search_jobs_can_run_without_age_filter():
     browser.search_jobs(role="Data Analyst", location="Bangalore")
 
     assert "?" not in browser.page.goto_url
+
+
+def test_detect_access_denied_page():
+    browser = NaukriBrowser()
+    browser.page = FakePage()
+    browser.page.title = lambda: "Access Denied"
+
+    assert browser.detect_access_denied()
+
+
+def test_access_denied_detection_does_not_match_normal_search_page():
+    browser = NaukriBrowser()
+    browser.page = FakePage()
+
+    assert not browser.detect_access_denied()
 
 
 def test_search_jobs_rejects_invalid_experience_range():

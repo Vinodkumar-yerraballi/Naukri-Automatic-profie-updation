@@ -472,6 +472,13 @@ class NaukriBrowser:
 
         return False
 
+    def detect_access_denied(self) -> bool:
+        """Return whether the current page is Naukri's access-denied page."""
+        if self.page is None:
+            return False
+
+        return self.page.title().strip().lower().startswith("access denied")
+
     def get_job_cards(self) -> list:
         """
         Extract visible job cards from the current search page.

@@ -1,6 +1,8 @@
 import csv
 import json
 
+import pytest
+
 from scripts import daily_job_report as report
 
 
@@ -67,3 +69,37 @@ def test_write_reports_creates_markdown_csv_and_summary(tmp_path, monkeypatch):
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["eligible_for_review"] == 1
     assert summary["application_submission_enabled"] is False
+
+
+def test_access_denied_report_is_recorded_and_fails(tmp_path, monkeypatch):
+    class FakeBrowser:
+        def __init__(self, headless):
+            pass
+
+        def start(self):
+            pass
+
+        def search_jobs(self, **kwargs):
+            pass
+
+        def detect_access_denied(self):
+            return True
+
+        def detect_security_challenge(self):
+            raise AssertionError("Should stop when access is denied.")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(report, "REPORT_DIR", tmp_path)
+    monkeypatch.setattr(report, "NaukriBrowser", FakeBrowser)
+    with pytest.raises(SystemExit, match="Naukri denied access"):
+        report.run_report()
+
+    markdown_path = next(tmp_path.glob("*.md"))
+    summary_path = next(tmp_path.glob("*.json"))
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["status"] == "ACCESS_DENIED"
+    assert summary["fresh_jobs_evaluated"] == 0
+    assert "denied access" in summary["message"]
+    assert "Status: ACCESS_DENIED" in markdown_path.read_text(encoding="utf-8")

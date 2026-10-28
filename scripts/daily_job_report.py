@@ -158,6 +158,14 @@ def run_report():
                 posted_within_hours=freshness_limit,
                 experience=experience,
             )
+            if browser.detect_access_denied():
+                status = "ACCESS_DENIED"
+                message = (
+                    "Naukri denied access to the search page. The run "
+                    "stopped without retrying or attempting to bypass "
+                    "the denial."
+                )
+                break
             if browser.detect_security_challenge():
                 status = "MANUAL_ACTION_REQUIRED"
                 message = (
@@ -248,10 +256,14 @@ def run_report():
     print(f"ELIGIBLE_FOR_REVIEW: {sum(bool(row.get('eligible_for_review')) for row in rows)}")
     if message:
         print(f"REPORT_MESSAGE: {message}")
-    if status == "ERROR":
-        raise RuntimeError(message)
+    if status in {"ERROR", "ACCESS_DENIED"}:
+        raise SystemExit(message)
     return reports
 
 
 if __name__ == "__main__":
-    run_report()
+    try:
+        run_report()
+    except SystemExit as error:
+        if error.code:
+            print(f"\nDaily job report stopped: {error.code}")

@@ -187,6 +187,12 @@ def main(run_review=True):
                 posted_within_hours=posted_within_hours,
                 experience=experience,
             )
+            if browser.detect_access_denied():
+                print(
+                    "Naukri denied access to the search page. Stopping "
+                    "without retrying or attempting to bypass the denial."
+                )
+                return
             if browser.detect_security_challenge():
                 print(
                     "Security challenge detected. Stop the scheduled run "
