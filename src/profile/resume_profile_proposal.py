@@ -23,7 +23,11 @@ class ResumeProfileProposal:
     def __init__(self, ai_service: ResumeTailoringService):
         self.ai_service = ai_service
 
-    def create(self, sections: list[str]) -> dict:
+    def create(
+        self,
+        sections: list[str],
+        review_required: bool = True,
+    ) -> dict:
         requested = set(sections)
         unknown = requested.difference(PROFILE_SECTIONS)
         if unknown:
@@ -34,14 +38,14 @@ class ResumeProfileProposal:
             raise ValueError("Select at least one profile section.")
 
         prompt = self._build_prompt(requested)
-        raw_response = self.ai_service._request_completion(prompt)
+        raw_response = self.ai_service.complete_prompt(prompt)
         data = self._parse_response(raw_response)
         return {
             "created_at": datetime.now().astimezone().isoformat(),
             "source_resume": str(self.ai_service.resume_path),
             "sections": sorted(requested),
             "data": data,
-            "review_required": True,
+            "review_required": review_required,
             "unmatched_existing_records": "preserve",
         }
 
@@ -99,7 +103,7 @@ class ResumeProfileProposal:
             ],
         }
         return (
-            "Extract a proposed Naukri profile update from the source resume. "
+            "Extract a candidate profile update from the source resume. "
             "Return valid JSON only, with exactly these top-level keys and "
             "matching value shapes:\n"
             f"{json.dumps(schema, ensure_ascii=True)}\n"

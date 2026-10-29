@@ -1,0 +1,33 @@
+FOUNDIT RESUME GUIDE
+====================
+
+From the project directory in PowerShell, create a local Foundit session:
+
+   venv\Scripts\python.exe main.py --setup-foundit-session
+
+Sign in yourself in the opened browser, complete any checks, and press Enter
+in PowerShell. The local browser profile is saved in
+data\foundit_browser_profile. Keep it private.
+
+Replace data\resume.pdf with your updated text-based PDF. To update Foundit
+only, without starting the Naukri job search, run:
+
+   venv\Scripts\python.exe main.py --update-foundit-profile
+
+The command uploads a changed resume and uses the configured AI provider to
+extract resume-supported skills, employment, and projects. It adds missing
+entries and preserves existing ones. Confirm the results on Foundit after the
+command.
+
+Resume upload and profile-field updates have separate state files:
+data\foundit_resume_upload.json and data\foundit_profile_update.json. If the
+site form or AI extraction fails, the command reports the error and does not
+mark the profile-field update complete. Check Foundit before retrying.
+
+Foundit login, CAPTCHA, OTP, and verification checks must be completed by you.
+The app does not overwrite existing work or project records, and it does not
+apply to jobs on Foundit. It cannot guarantee interviews or shortlisting.
+
+The normal main.py command also attempts configured platform updates, then
+continues into the Naukri job search. Use --update-foundit-profile when you
+want Foundit without opening the Naukri pipeline.

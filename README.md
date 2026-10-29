@@ -1,15 +1,15 @@
-# Naukri Job Pipeline
+# Job Pipeline and Resume Updates
 
 Find recent Naukri listings that fit your goals, compare them with your
 candidate profile, and prepare job-specific resume drafts for your review. The
-project can also upload a changed source resume to your Naukri account after
-you sign in locally.
+project can also upload a changed source resume to signed-in Naukri, Foundit,
+and Indeed profiles.
 
 This is a **review-first** job assistant. It requires your terminal approval
 for each job before attempting a supported one-step Naukri application. It
-does not automatically edit your headline, skills, work history, education,
-projects, or certifications; review the profile proposal and make those
-changes manually.
+can add resume-supported skills, work experience, and projects to Foundit.
+Other profile fields are not automatically changed. Wellfound resume changes
+are not automated.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -26,9 +26,11 @@ changes manually.
    text.
 5. Stores matching jobs locally and lets you review the queue.
 6. Can generate a separate DOCX resume draft for a suitable job.
-7. Can upload your changed source PDF to your signed-in Naukri profile.
-8. Can prepare a profile-update proposal as JSON for you to review and apply
-   manually.
+7. Can upload your changed source PDF to your signed-in Naukri, Foundit, and
+   Indeed profiles, and add resume-supported skills, experience, and projects
+   to Foundit.
+8. Can prepare a Naukri profile-update proposal as JSON for you to review and
+   apply manually.
 9. With `application.auto_apply: true`, can attempt a supported one-step
    application after you approve that specific job in the terminal.
 
@@ -38,7 +40,11 @@ changes manually.
 .
 |-- main.py                         # Command-line entry point
 |-- requirements.txt                # Python dependencies
-|-- HOW_TO_RUN.txt                  # Additional Windows run instructions
+|-- HOW_TO_RUN.txt                  # General Windows run instructions
+|-- HOW_TO_RUN_NAUKRI.txt           # Naukri resume/profile instructions
+|-- HOW_TO_RUN_FOUNDIT.txt          # Foundit resume/profile instructions
+|-- HOW_TO_RUN_INDEED.txt           # Indeed resume instructions
+|-- HOW_TO_RUN_WELLFOUND.txt        # Wellfound manual resume instructions
 |-- config/
 |   |-- config.yaml                 # General paths, database, and logging
 |   |-- profile.yaml                # Candidate skills, education, and roles
@@ -180,7 +186,7 @@ Set `provider: anthropic` in `config\job_preferences.yaml` and configure
 `ANTHROPIC_API_KEY` in your Windows user environment. Keep API keys out of
 source files and chat messages.
 
-### 6. Sign in to Naukri locally (optional, recommended for resume upload)
+### 6. Sign in locally (recommended for resume upload)
 
 The app does not need your Naukri password. It opens a local browser so you can
 sign in yourself and save a browser session:
@@ -194,6 +200,18 @@ press Enter. The browser session is kept under
 `data\naukri_browser_profile`. Treat that folder as sensitive: anyone who can
 access it may be able to use the saved session.
 
+Foundit and Indeed use separate local sessions. Sign in yourself in each
+opened browser; do not put account passwords in project files:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --setup-foundit-session
+.\.venv\Scripts\python.exe main.py --setup-indeed-session
+```
+
+Each saved browser profile is stored under `data\foundit_browser_profile` or
+`data\indeed_browser_profile`. These directories are sensitive. Indeed may
+redirect to a region-specific sign-in or require additional verification.
+
 ## Run the pipeline
 
 ### Run once now
@@ -206,13 +224,19 @@ The app searches jobs and may prompt you to review matching listings in the
 terminal. Keep the terminal open and available for input during an interactive
 run.
 
+To update Foundit only, without running a Naukri search:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --update-foundit-profile
+```
+
 ### Run every day
 
 ```powershell
 .\.venv\Scripts\python.exe main.py --schedule
 ```
 
-The default schedule is 09:30 in `Asia/Kolkata`, configured in
+The default schedule is 09:00 in `Asia/Kolkata`, configured in
 `config\job_preferences.yaml`. The scheduler waits for the next scheduled
 time; it does not run an immediate scan on startup. Keep the laptop awake,
 connected to the internet, and the PowerShell window open. For automatic
@@ -236,8 +260,20 @@ profile fields.
   resume with the last confirmed upload. It attempts to upload only when the
   file has changed. Login expiry, verification, or upload-confirmation problems
   require manual attention.
-- After a successful changed-resume upload, the app can generate a profile
-  proposal. It does not automatically apply the proposal to Naukri.
+- Foundit and Indeed are also enabled for changed-resume upload in
+  `config\job_preferences.yaml`. Each platform has its own saved session and
+  upload-state file. An upload is recorded only after the site displays a
+  recognized success message; if the site's page changes or does not confirm
+  the upload, check it manually and retry. The upload automation does not
+  bypass login, CAPTCHA, or verification.
+- Foundit can add missing resume-supported skills, employment entries, and
+  projects. It preserves existing entries rather than replacing them. Profile
+  fields are processed once per resume version using the configured AI
+  provider. Indeed currently supports resume upload only.
+- Wellfound is not automatically updated. Its resume workflow may be tied to a
+  specific application; attach and verify your resume there yourself.
+- Naukri profile fields are not automatically changed; the profile proposal
+  is for manual review.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.
@@ -296,7 +332,7 @@ profile fields.
 ## Privacy and safe handling
 
 - Never commit `.env`, API keys, passwords, personal resumes, generated drafts,
-  or your saved browser session.
+  or any saved browser session.
 - The `.gitignore` excludes the local resume, browser session, upload state,
   generated drafts, and profile proposal.
 - Review cloud AI data-use terms before sending resume or job-description

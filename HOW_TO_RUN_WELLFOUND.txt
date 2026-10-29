@@ -1,0 +1,14 @@
+WELLFOUND RESUME GUIDE
+======================
+
+Wellfound resume updates are not automated by this project. The resume flow
+may be part of a specific job application rather than a general profile
+resume field.
+
+Sign in to Wellfound yourself, review your candidate profile, and upload or
+attach the current data\resume.pdf where the site offers that option. Confirm
+that the intended resume is selected before submitting an application.
+
+The project does not automate Wellfound login, profile changes, or job
+applications. Keep profile details accurate and do not rely on any tool to
+guarantee interviews or shortlisting.

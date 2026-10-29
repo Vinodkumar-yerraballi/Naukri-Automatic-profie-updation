@@ -17,6 +17,9 @@ class FakeAIService:
         self.prompt = prompt
         return self.response
 
+    def complete_prompt(self, prompt):
+        return self._request_completion(prompt)
+
 
 def valid_profile():
     return {
@@ -49,6 +52,19 @@ def test_create_proposal_limits_prompt_and_marks_review_required():
     assert proposal["sections"] == ["education", "headline"]
     assert "phone numbers" in ai_service.prompt
     assert '"headline"' in ai_service.prompt
+
+
+def test_create_profile_proposal_can_be_marked_for_automatic_update():
+    proposal_builder = ResumeProfileProposal(
+        FakeAIService(json.dumps(valid_profile()))
+    )
+
+    proposal = proposal_builder.create(
+        ["skills", "employment", "projects"],
+        review_required=False,
+    )
+
+    assert proposal["review_required"] is False
 
 
 def test_create_proposal_rejects_unknown_section():

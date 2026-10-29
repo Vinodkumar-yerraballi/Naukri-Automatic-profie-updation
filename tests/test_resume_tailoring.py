@@ -1,6 +1,7 @@
 import json
 from urllib.error import HTTPError
 
+import pytest
 from docx import Document
 
 from src.profile import resume_tailoring
@@ -94,6 +95,76 @@ def test_create_draft_falls_back_to_local_provider(tmp_path, monkeypatch):
 
     assert output_path.is_file()
     assert service.fallback_service.provider == "ollama"
+
+
+def test_complete_prompt_falls_back_when_primary_provider_fails(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        api_key="test-gemini-key",
+        provider="gemini",
+        fallback_provider="ollama",
+    )
+    primary_calls = []
+    fallback_calls = []
+
+    def fail_primary(prompt):
+        primary_calls.append(prompt)
+        raise RuntimeError("Gemini request failed with HTTP 503")
+
+    def complete_with_fallback(prompt):
+        fallback_calls.append(prompt)
+        return '{"skills": ["Python"]}'
+
+    monkeypatch.setattr(service, "_request_completion", fail_primary)
+    monkeypatch.setattr(
+        service.fallback_service,
+        "_request_completion",
+        complete_with_fallback,
+    )
+
+    result = service.complete_prompt("Extract profile facts")
+
+    assert result == '{"skills": ["Python"]}'
+    assert primary_calls == ["Extract profile facts"]
+    assert fallback_calls == ["Extract profile facts"]
+
+
+def test_complete_prompt_reports_primary_and_fallback_failures(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        api_key="test-gemini-key",
+        provider="gemini",
+        fallback_provider="ollama",
+    )
+    monkeypatch.setattr(
+        service,
+        "_request_completion",
+        lambda prompt: (_ for _ in ()).throw(
+            RuntimeError("Gemini HTTP 503")
+        ),
+    )
+    monkeypatch.setattr(
+        service.fallback_service,
+        "_request_completion",
+        lambda prompt: (_ for _ in ()).throw(
+            RuntimeError("Ollama is unavailable")
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Both gemini and ollama"):
+        service.complete_prompt("Extract profile facts")
 
 
 def test_ollama_completion_uses_local_api_without_api_key(tmp_path, monkeypatch):

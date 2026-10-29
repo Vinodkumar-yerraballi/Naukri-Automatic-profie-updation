@@ -1,5 +1,5 @@
-NAUKRI PROFILE AND JOB PIPELINE - QUICK COMMAND GUIDE
-====================================================
+JOB PIPELINE AND RESUME UPDATES - QUICK COMMAND GUIDE
+=====================================================
 
 Open PowerShell and move to the project folder:
 
@@ -20,7 +20,15 @@ COMMANDS YOU WILL USE
    Sign in yourself in the browser window, complete any verification, return
    to PowerShell, and press Enter. Never put your Naukri password in a file.
 
-2. Create a profile-field proposal from your current source resume:
+2. Save or refresh separate local Foundit and Indeed sessions:
+
+   venv\Scripts\python.exe main.py --setup-foundit-session
+   venv\Scripts\python.exe main.py --setup-indeed-session
+
+   Sign in yourself in each browser window and press Enter. Never put account
+   passwords in a file. The browser profiles are stored under data\.
+
+3. Create a profile-field proposal from your current source resume:
 
    venv\Scripts\python.exe main.py --prepare-profile-update
 
@@ -28,7 +36,7 @@ COMMANDS YOU WILL USE
 
    data\processed\profile_update_proposal.json
 
-3. Run one job search now, attempt to upload a changed source resume, and
+4. Run one job search now, attempt to upload a changed source resume, and
    review pending jobs interactively:
 
    venv\Scripts\python.exe main.py
@@ -38,37 +46,45 @@ COMMANDS YOU WILL USE
    supported one-step Apply action on Naukri. Review the job and resume
    carefully before approving.
 
-4. Start the daily job/resume pipeline:
+   To update Foundit resume, skills, experience, and projects without starting
+   the Naukri job search:
+
+   venv\Scripts\python.exe main.py --update-foundit-profile
+
+5. Start the daily job/resume pipeline:
 
    venv\Scripts\python.exe main.py --schedule
 
-   The configured schedule is 09:30 Asia/Kolkata. Keep the laptop on, awake,
+   The configured schedule is 09:00 Asia/Kolkata. Keep the laptop on, awake,
    connected to the internet, and the PowerShell window open.
 
 
-UPDATE YOUR RESUME ON NAUKRI
-----------------------------
+UPDATE YOUR RESUME ON SUPPORTED PLATFORMS
+-----------------------------------------
 
 1. Update your master resume and export it as a text-based PDF.
 2. Replace this project file with the updated PDF:
 
    data\resume.pdf
 
-3. To have the app attempt the upload, run:
+3. Sign in to each platform once using the setup commands above. To have the
+   app attempt the changed-resume upload, run:
 
    venv\Scripts\python.exe main.py
 
    The normal run compares the PDF with the last confirmed upload and attempts
-   an upload only when it has changed. It requires the saved Naukri session.
-   Complete login or verification yourself if prompted, then check your
-   Naukri profile to confirm the resume was updated.
+   an upload only when it has changed. It uses separate Naukri, Foundit, and
+   Indeed sessions and tracks each platform independently. If a site asks for
+   login/verification or does not confirm the upload, check that profile
+   manually before retrying.
 
-You can also upload the PDF yourself on Naukri. The profile-proposal command
-does not upload the PDF.
+Wellfound is not automatically updated; upload or attach the resume there
+yourself when appropriate. The profile-proposal command does not upload the
+PDF or change profile fields.
 
 
-UPDATE YOUR NAUKRI PROFILE FIELDS
----------------------------------
+UPDATE PROFILE FIELDS
+---------------------
 
 The app does not automatically edit the Naukri headline, desired job title,
 summary, skills, employment, education, projects, or certifications.

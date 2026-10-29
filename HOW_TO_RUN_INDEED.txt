@@ -1,0 +1,26 @@
+INDEED RESUME GUIDE
+===================
+
+From the project directory in PowerShell, create a local Indeed session:
+
+   venv\Scripts\python.exe main.py --setup-indeed-session
+
+Sign in yourself in the opened browser, complete any checks, and press Enter
+in PowerShell. The local browser profile is saved in
+data\indeed_browser_profile. Keep it private.
+
+Replace data\resume.pdf with your updated text-based PDF. Run the normal
+pipeline:
+
+   venv\Scripts\python.exe main.py
+
+The app attempts an upload only when the resume has changed since the last
+confirmed Indeed upload. Its state is tracked in
+data\indeed_resume_upload.json. Indeed may redirect to a region-specific page
+or change its profile interface. Check your Indeed profile after each attempt.
+If the app cannot confirm success, verify the profile before retrying.
+
+Indeed login and verification checks must be completed by you. This feature
+uploads the resume only; skills, work experience, and projects are not
+automatically filled on Indeed. It does not apply to jobs on Indeed and cannot
+guarantee interviews or shortlisting.

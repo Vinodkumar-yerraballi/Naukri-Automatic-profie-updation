@@ -1,6 +1,8 @@
 import argparse
 from datetime import date
 
+from playwright.sync_api import Error as PlaywrightError
+
 from src.ingestion.naukri_browser import NaukriBrowser
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
@@ -15,6 +17,11 @@ from src.notification.notifier import Notifier
 from src.application.permission import PermissionManager
 from src.profile.resume_tailoring import ResumeTailoringService
 from src.profile.naukri_resume_uploader import NaukriResumeUploader
+from src.profile.platform_resume_uploader import (
+    CandidatePlatformBrowser,
+    PlatformProfileUpdater,
+    PlatformResumeUploader,
+)
 from src.profile.resume_profile_proposal import ResumeProfileProposal
 from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
@@ -43,6 +50,120 @@ def _select_search_queries(
                 return selected_queries
 
     return selected_queries
+
+
+def update_candidate_platform(
+    platform: str,
+    platform_config: dict,
+    resume_path: str,
+    resume_tailoring,
+    playwright=None,
+) -> list[str]:
+    """Update one platform's resume and configured resume-supported fields."""
+    browser = CandidatePlatformBrowser(platform)
+    failures = []
+    try:
+        browser.start_persistent(
+            platform_config.get(
+                "browser_profile_directory",
+                f"data/{platform}_browser_profile",
+            ),
+            playwright=playwright,
+        )
+    except (
+        OSError,
+        PlaywrightError,
+        RuntimeError,
+        ValueError,
+    ) as error:
+        browser.close()
+        return [
+            f"{platform.title()} browser could not be started: "
+            f"{type(error).__name__}: {error}"
+        ]
+
+    try:
+        platform_resume = platform_config.get("resume_path", resume_path)
+        if platform_config.get("update_resume", False):
+            try:
+                uploader = PlatformResumeUploader(
+                    platform,
+                    platform_config.get(
+                        "upload_state_file",
+                        f"data/{platform}_resume_upload.json",
+                    ),
+                )
+                if uploader.update_if_changed(browser, platform_resume):
+                    print(
+                        f"{platform.title()} profile resume updated from: "
+                        f"{platform_resume}"
+                    )
+            except (
+                OSError,
+                PlaywrightError,
+                RuntimeError,
+                ValueError,
+            ) as error:
+                failures.append(
+                    f"{platform.title()} resume upload failed: "
+                    f"{type(error).__name__}: {error}"
+                )
+
+        if platform_config.get("update_profile_fields", False):
+            try:
+                profile_updater = PlatformProfileUpdater(
+                    platform,
+                    platform_config.get(
+                        "profile_update_state_file",
+                        f"data/{platform}_profile_update.json",
+                    ),
+                )
+                if not profile_updater.is_current(platform_resume):
+                    if not resume_tailoring:
+                        raise RuntimeError(
+                            "Resume tailoring is required to extract profile "
+                            "fields from the source resume."
+                        )
+                    proposal_builder = ResumeProfileProposal(
+                        resume_tailoring
+                    )
+                    proposal = proposal_builder.create(
+                        platform_config.get(
+                            "profile_update_sections",
+                            ["skills", "employment", "projects"],
+                        ),
+                        review_required=False,
+                    )
+                    updated_fields = profile_updater.update_if_changed(
+                        browser,
+                        platform_resume,
+                        proposal,
+                    )
+                    if updated_fields:
+                        print(
+                            f"{platform.title()} profile fields updated "
+                            "from the resume: "
+                            f"{', '.join(updated_fields)}"
+                        )
+                    else:
+                        print(
+                            f"{platform.title()} profile fields already "
+                            "match resume-supported records; existing "
+                            "records were preserved."
+                        )
+            except (
+                OSError,
+                PlaywrightError,
+                RuntimeError,
+                ValueError,
+            ) as error:
+                failures.append(
+                    f"{platform.title()} profile-field update failed: "
+                    f"{type(error).__name__}: {error}"
+                )
+    finally:
+        browser.close()
+    return failures
 
 
 def main(run_review=True):
@@ -128,7 +249,12 @@ def main(run_review=True):
                             "for review. Existing unmatched records are "
                             f"preserved. Proposal: {proposal_path}"
                         )
-            except (OSError, RuntimeError, ValueError) as error:
+            except (
+                OSError,
+                PlaywrightError,
+                RuntimeError,
+                ValueError,
+            ) as error:
                 print(
                     "\nNaukri profile resume update failed; continuing with "
                     "job search: "
@@ -136,6 +262,26 @@ def main(run_review=True):
                 )
         else:
             browser.start()
+
+        for platform, platform_config in (
+            config_manager.get_resume_platform_configs().items()
+        ):
+            if not (
+                platform_config.get("update_resume", False)
+                or platform_config.get("update_profile_fields", False)
+            ):
+                continue
+            failures = update_candidate_platform(
+                platform,
+                platform_config,
+                source_resume,
+                resume_tailoring,
+                playwright=browser.playwright,
+            )
+            for failure in failures:
+                print(
+                    f"\n{failure}"
+                )
 
         # ==================================================
         # 2. Search Naukri
@@ -767,6 +913,24 @@ if __name__ == "__main__":
         help="Sign in manually and save a local Naukri browser session.",
     )
     actions.add_argument(
+        "--setup-foundit-session",
+        action="store_true",
+        help="Sign in manually and save a local Foundit browser session.",
+    )
+    actions.add_argument(
+        "--setup-indeed-session",
+        action="store_true",
+        help="Sign in manually and save a local Indeed browser session.",
+    )
+    actions.add_argument(
+        "--update-foundit-profile",
+        action="store_true",
+        help=(
+            "Update Foundit resume, skills, experience, and projects without "
+            "running the Naukri job search."
+        ),
+    )
+    actions.add_argument(
         "--prepare-profile-update",
         action="store_true",
         help=(
@@ -796,6 +960,54 @@ if __name__ == "__main__":
             print("Local Naukri browser session is ready.")
         finally:
             browser.close()
+    elif arguments.setup_foundit_session or arguments.setup_indeed_session:
+        platform = (
+            "foundit"
+            if arguments.setup_foundit_session
+            else "indeed"
+        )
+        platform_config = ConfigManager().get_resume_platform_configs()[
+            platform
+        ]
+        browser = CandidatePlatformBrowser(platform, headless=False)
+        try:
+            browser.start_persistent(
+                platform_config.get(
+                    "browser_profile_directory",
+                    f"data/{platform}_browser_profile",
+                )
+            )
+            browser.setup_login()
+            input(
+                f"Sign in to {platform.title()} in the opened browser. "
+                "After you reach your account, press Enter here to save "
+                "the session: "
+            )
+            print(f"Local {platform.title()} browser session is ready.")
+        finally:
+            browser.close()
+    elif arguments.update_foundit_profile:
+        config_manager = ConfigManager()
+        platform_config = config_manager.get_resume_platform_configs()[
+            "foundit"
+        ]
+        resume_path = platform_config.get("resume_path", "data/resume.pdf")
+        resume_config = config_manager.get_resume_tailoring_config()
+        resume_config["resume_path"] = resume_path
+        resume_tailoring = ResumeTailoringService.from_config(resume_config)
+        if not resume_tailoring:
+            raise RuntimeError(
+                "Resume tailoring must be enabled to extract Foundit "
+                "profile fields."
+            )
+        failures = update_candidate_platform(
+            "foundit",
+            platform_config,
+            resume_path,
+            resume_tailoring,
+        )
+        if failures:
+            raise RuntimeError("; ".join(failures))
     elif arguments.prepare_profile_update:
         config_manager = ConfigManager()
         profile_config = config_manager.get_naukri_profile_config()

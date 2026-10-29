@@ -68,6 +68,13 @@ class ConfigManager:
         """Return Naukri profile-update configuration."""
         return self.preferences.get("naukri_profile", {})
 
+    def get_resume_platform_configs(self) -> dict[str, dict]:
+        """Return resume-update configuration for supported platforms."""
+        return {
+            platform: self.preferences.get(f"{platform}_profile", {})
+            for platform in ("foundit", "indeed")
+        }
+
     def get_minimum_score(self) -> float:
         """
         Return the minimum job matching score.

@@ -124,35 +124,36 @@ class ResumeTailoringService:
             raise ValueError("Cannot tailor a resume without a job description.")
 
         prompt = self._build_prompt(job, description)
-        try:
-            tailored_text = self._request_completion(prompt)
-        except RuntimeError as primary_error:
-            if not self.fallback_service:
-                raise
-            logging.warning(
-                "%s resume generation failed; trying local %s fallback: %s",
-                self.provider,
-                self.fallback_service.provider,
-                primary_error,
-            )
-            try:
-                tailored_text = self.fallback_service._request_completion(
-                    prompt
-                )
-            except RuntimeError as fallback_error:
-                raise RuntimeError(
-                    f"Both {self.provider} and "
-                    f"{self.fallback_service.provider} resume generation "
-                    "failed. "
-                    f"Primary error: {primary_error}; "
-                    f"fallback error: {fallback_error}"
-                ) from fallback_error
+        tailored_text = self.complete_prompt(prompt)
         if not tailored_text.strip():
             raise RuntimeError("The configured AI provider returned an empty resume draft.")
 
         output_path = self._output_path(job)
         self._write_docx(output_path, job, tailored_text.strip())
         return output_path
+
+    def complete_prompt(self, prompt: str) -> str:
+        """Complete a prompt with the primary provider and configured fallback."""
+        try:
+            return self._request_completion(prompt)
+        except RuntimeError as primary_error:
+            if not self.fallback_service:
+                raise
+            logging.warning(
+                "%s request failed; trying %s fallback: %s",
+                self.provider,
+                self.fallback_service.provider,
+                primary_error,
+            )
+            try:
+                return self.fallback_service._request_completion(prompt)
+            except RuntimeError as fallback_error:
+                raise RuntimeError(
+                    f"Both {self.provider} and "
+                    f"{self.fallback_service.provider} requests failed. "
+                    f"Primary error: {primary_error}; "
+                    f"fallback error: {fallback_error}"
+                ) from fallback_error
 
     def _build_prompt(self, job: dict, description: str) -> str:
         return (
