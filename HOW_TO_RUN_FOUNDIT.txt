@@ -16,8 +16,20 @@ only, without starting the Naukri job search, run:
 
 The command uploads a changed resume and uses the configured AI provider to
 extract resume-supported skills, employment, and projects. It adds missing
-entries and preserves existing ones. Confirm the results on Foundit after the
-command.
+entries and preserves existing ones. Profile fields are checked on each run,
+even when the resume file has not changed, so rerunning the command can add
+skills or records that were missing before. Confirm the results on Foundit
+after the command.
+
+To update Naukri and Foundit together without starting the Naukri job search,
+run:
+
+   venv\Scripts\python.exe main.py --update-all-profiles
+
+The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
+this command daily at 09:00 Asia/Kolkata. Keep your Windows account signed in
+so the saved browser sessions can be used. The task requires an internet
+connection and does not bypass login, OTP, CAPTCHA, or other checks.
 
 Resume upload and profile-field updates have separate state files:
 data\foundit_resume_upload.json and data\foundit_profile_update.json. If the

@@ -77,20 +77,20 @@ naukri_profile:
 
   update_resume: true
 
+  update_profile_fields: true
+
   resume_path: data/resume.pdf
 
   browser_profile_directory: data/naukri_browser_profile
 
   upload_state_file: data/profile_resume_upload.json
 
+  profile_update_state_file: data/naukri_profile_update.json
+
   profile_update_sections:
     - headline
-    - summary
     - skills
-    - employment
-    - education
     - projects
-    - certifications
 
   profile_proposal_file: data/processed/profile_update_proposal.json
 

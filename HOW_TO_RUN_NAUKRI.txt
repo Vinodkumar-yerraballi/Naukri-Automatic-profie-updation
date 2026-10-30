@@ -8,20 +8,40 @@ From the project directory in PowerShell:
 Sign in yourself in the browser and press Enter in PowerShell. The saved
 session is in data\naukri_browser_profile; keep that directory private.
 
-Replace data\resume.pdf with your updated text-based PDF. Run:
+Replace data\resume.pdf with your updated text-based PDF. To upload the
+changed resume and update resume-supported profile fields without starting the
+job search, run:
 
-   venv\Scripts\python.exe main.py
+   venv\Scripts\python.exe main.py --update-naukri-profile
 
-The app attempts a Naukri resume upload only when the file hash differs from
-the last confirmed upload. It records success separately in
-data\profile_resume_upload.json. Check your Naukri profile after the run. The
-daily command is:
+The command uploads a changed resume, updates the resume headline and
+resume-supported key skills, and adds projects that are not already on your
+profile. Existing projects are preserved. The configured AI provider must be
+available to extract the fields. Profile-field updates are tracked in
+data\naukri_profile_update.json; the combined daily updater rechecks fields
+each run, while this command only processes a resume version once. Check your
+Naukri profile after the run.
+
+The normal command `python main.py` also attempts the configured Naukri
+resume/profile update, then continues with the Naukri job search. The daily
+job-search scheduler command is:
 
    venv\Scripts\python.exe main.py --schedule
 
-Profile fields such as headline, skills, and work history are not automatically
-edited. Run --prepare-profile-update to create a proposal, then review and
-apply accurate details yourself. See HOW_TO_RUN.txt for job-search guidance.
+To update both Naukri and Foundit profiles once without starting the job
+search, run:
+
+   venv\Scripts\python.exe main.py --update-all-profiles
+
+The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
+that profile-only command daily at 09:00 Asia/Kolkata. Keep your Windows
+account signed in so the saved browser sessions can be used.
+
+If the site form changes, the AI cannot extract valid data, or Naukri asks for
+verification, the command reports the failure and does not mark the profile
+update complete. Existing projects are not overwritten. Check your profile
+before retrying. Run --prepare-profile-update for a proposal without making
+profile changes. See HOW_TO_RUN.txt for job-search guidance.
 
 The app does not bypass login, CAPTCHA, OTP, or other security checks and
 cannot guarantee interviews or shortlisting.

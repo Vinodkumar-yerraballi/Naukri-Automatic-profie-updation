@@ -3,6 +3,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Protocol
 
 from playwright.sync_api import (
     Error as PlaywrightError,
@@ -25,6 +26,12 @@ PLATFORM_PAGES = {
         "profile": "https://profile.indeed.com/",
     },
 }
+PROFILE_STATE_PLATFORMS = {"foundit", "naukri"}
+
+
+class ProfileFieldBrowser(Protocol):
+    def update_profile_fields(self, proposal: dict) -> list[str]: ...
+
 
 RESUME_FILE_INPUT_SELECTOR = (
     "input[type='file'][accept*='.pdf' i], "
@@ -65,7 +72,8 @@ class CandidatePlatformBrowser:
             headless=self.headless,
             viewport={"width": 1440, "height": 900},
         )
-        self.page = self.context.new_page()
+        pages = self.context.pages
+        self.page = pages[0] if pages else self.context.new_page()
 
     def setup_login(self) -> None:
         if self.page is None:
@@ -255,8 +263,15 @@ class CandidatePlatformBrowser:
                 return False
 
             for skill in missing:
-                field.fill(skill)
-                self.page.wait_for_timeout(500)
+                field.click(timeout=10000)
+                search_fields = modal.locator(
+                    "input:not([readonly]):not([type='hidden'])"
+                )
+                if search_fields.count() > 0:
+                    search_field = search_fields.last
+                    if search_field.is_visible():
+                        search_field.fill(skill)
+                        self.page.wait_for_timeout(500)
                 options = self.page.locator("li, [role='option']")
                 exact_match = None
                 for option in options.all():
@@ -270,7 +285,9 @@ class CandidatePlatformBrowser:
                 if exact_match is None:
                     raise RuntimeError(
                         f"Foundit did not offer an exact skill match for "
-                        f"'{skill}'. No additional skills were saved."
+                        f"'{skill}' after opening its skill selector. Check "
+                        "the profile manually; no additional skills were "
+                        "saved."
                     )
                 exact_match.click(timeout=10000)
                 self.page.wait_for_timeout(250)
@@ -345,12 +362,13 @@ class CandidatePlatformBrowser:
             ):
                 title_option = option
                 break
-        if title_option is None:
+        if title_option is not None:
+            title_option.click(timeout=10000)
+        elif title_field.input_value().strip().casefold() != title.casefold():
             raise RuntimeError(
                 f"Foundit did not offer an exact job-title match for "
                 f"'{title}'. No experience was saved."
             )
-        title_option.click(timeout=10000)
         company_field.fill(entry["company"].strip())
         description = entry.get("description")
         if isinstance(description, str) and description.strip():
@@ -602,7 +620,7 @@ class PlatformResumeUploader:
 
     def update_if_changed(
         self,
-        browser: CandidatePlatformBrowser,
+        browser: ProfileFieldBrowser,
         resume_path: str | Path,
     ) -> bool:
         resume = Path(resume_path)
@@ -664,7 +682,7 @@ class PlatformProfileUpdater:
     """Apply resume-supported profile fields once per source-resume version."""
 
     def __init__(self, platform: str, state_path: str | Path):
-        if platform not in PLATFORM_PAGES:
+        if platform not in PROFILE_STATE_PLATFORMS:
             raise ValueError(f"Unsupported profile platform: {platform}")
         self.platform = platform
         self.state_path = Path(state_path)
@@ -677,16 +695,17 @@ class PlatformProfileUpdater:
 
     def update_if_changed(
         self,
-        browser: CandidatePlatformBrowser,
+        browser: ProfileFieldBrowser,
         resume_path: str | Path,
         proposal: dict,
+        force: bool = False,
     ) -> list[str]:
         resume = Path(resume_path)
         if not resume.is_file():
             raise FileNotFoundError(f"Resume file not found: {resume}")
 
         digest = self._file_hash(resume)
-        if digest == self._previous_hash():
+        if digest == self._previous_hash() and not force:
             return []
 
         changed = browser.update_profile_fields(proposal)

@@ -7,9 +7,9 @@ and Indeed profiles.
 
 This is a **review-first** job assistant. It requires your terminal approval
 for each job before attempting a supported one-step Naukri application. It
-can add resume-supported skills, work experience, and projects to Foundit.
-Other profile fields are not automatically changed. Wellfound resume changes
-are not automated.
+can update the Naukri resume headline and key skills and add resume-supported
+projects. It can also add resume-supported skills, work experience, and
+projects to Foundit. Wellfound profile changes are not automated.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -28,7 +28,7 @@ are not automated.
 6. Can generate a separate DOCX resume draft for a suitable job.
 7. Can upload your changed source PDF to your signed-in Naukri, Foundit, and
    Indeed profiles, and add resume-supported skills, experience, and projects
-   to Foundit.
+   to Naukri and Foundit.
 8. Can prepare a Naukri profile-update proposal as JSON for you to review and
    apply manually.
 9. With `application.auto_apply: true`, can attempt a supported one-step
@@ -230,6 +230,12 @@ To update Foundit only, without running a Naukri search:
 .\.venv\Scripts\python.exe main.py --update-foundit-profile
 ```
 
+To update Naukri only, without running the job search:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --update-naukri-profile
+```
+
 ### Run every day
 
 ```powershell
@@ -270,6 +276,10 @@ profile fields.
   projects. It preserves existing entries rather than replacing them. Profile
   fields are processed once per resume version using the configured AI
   provider. Indeed currently supports resume upload only.
+- Naukri can update the resume headline and key skills and add missing
+  resume-supported projects. Existing projects are preserved. Profile fields
+  are processed once per source-resume version using the configured AI
+  provider. Use `--update-naukri-profile` to run this without the job search.
 - Wellfound is not automatically updated. Its resume workflow may be tied to a
   specific application; attach and verify your resume there yourself.
 - Naukri profile fields are not automatically changed; the profile proposal

@@ -118,7 +118,11 @@ def update_candidate_platform(
                         f"data/{platform}_profile_update.json",
                     ),
                 )
-                if not profile_updater.is_current(platform_resume):
+                reconcile_foundit = platform == "foundit"
+                if (
+                    not profile_updater.is_current(platform_resume)
+                    or reconcile_foundit
+                ):
                     if not resume_tailoring:
                         raise RuntimeError(
                             "Resume tailoring is required to extract profile "
@@ -138,6 +142,7 @@ def update_candidate_platform(
                         browser,
                         platform_resume,
                         proposal,
+                        force=reconcile_foundit,
                     )
                     if updated_fields:
                         print(
@@ -166,6 +171,90 @@ def update_candidate_platform(
     return failures
 
 
+def update_naukri_candidate_profile(
+    browser: NaukriBrowser,
+    profile_config: dict,
+    resume_path: str,
+    resume_tailoring,
+    reconcile_profile_fields: bool = False,
+) -> list[str]:
+    """Upload a changed Naukri resume and update supported profile fields."""
+    failures = []
+    if profile_config.get("update_resume", False):
+        try:
+            uploader = NaukriResumeUploader(
+                profile_config.get(
+                    "upload_state_file",
+                    "data/profile_resume_upload.json",
+                )
+            )
+            if uploader.update_if_changed(browser, resume_path):
+                print(f"Naukri profile resume updated from: {resume_path}")
+        except (
+            OSError,
+            PlaywrightError,
+            RuntimeError,
+            ValueError,
+        ) as error:
+            failures.append(
+                "Naukri resume upload failed: "
+                f"{type(error).__name__}: {error}"
+            )
+
+    if profile_config.get("update_profile_fields", False):
+        try:
+            profile_updater = PlatformProfileUpdater(
+                "naukri",
+                profile_config.get(
+                    "profile_update_state_file",
+                    "data/naukri_profile_update.json",
+                ),
+            )
+            if (
+                not profile_updater.is_current(resume_path)
+                or reconcile_profile_fields
+            ):
+                if not resume_tailoring:
+                    raise RuntimeError(
+                        "Resume tailoring is required to extract Naukri "
+                        "profile fields."
+                    )
+                proposal = ResumeProfileProposal(resume_tailoring).create(
+                    profile_config.get(
+                        "profile_update_sections",
+                        ["headline", "skills", "projects"],
+                    ),
+                    review_required=False,
+                )
+                updated_fields = profile_updater.update_if_changed(
+                    browser,
+                    resume_path,
+                    proposal,
+                    force=reconcile_profile_fields,
+                )
+                if updated_fields:
+                    print(
+                        "Naukri profile fields updated from the resume: "
+                        f"{', '.join(updated_fields)}"
+                    )
+                else:
+                    print(
+                        "Naukri profile fields already match the "
+                        "resume-supported details."
+                    )
+        except (
+            OSError,
+            PlaywrightError,
+            RuntimeError,
+            ValueError,
+        ) as error:
+            failures.append(
+                "Naukri profile-field update failed: "
+                f"{type(error).__name__}: {error}"
+            )
+    return failures
+
+
 def main(run_review=True):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
@@ -174,6 +263,10 @@ def main(run_review=True):
     profile_config = config_manager.get_naukri_profile_config()
     resume_config = config_manager.get_resume_tailoring_config()
     profile_update_enabled = profile_config.get("update_resume", False)
+    naukri_profile_fields_enabled = profile_config.get(
+        "update_profile_fields",
+        False,
+    )
     source_resume = profile_config.get(
         "resume_path",
         resume_config.get("resume_path", "data/resume.pdf"),
@@ -197,69 +290,20 @@ def main(run_review=True):
         # 1. Start browser
         # ==================================================
 
-        if profile_update_enabled:
+        if profile_update_enabled or naukri_profile_fields_enabled:
             browser.start_persistent(
                 profile_config.get(
                     "browser_profile_directory",
                     "data/naukri_browser_profile",
                 )
             )
-            try:
-                uploader = NaukriResumeUploader(
-                    profile_config.get(
-                        "upload_state_file",
-                        "data/profile_resume_upload.json",
-                    )
-                )
-                uploaded = uploader.update_if_changed(
-                    browser,
-                    source_resume,
-                )
-                if uploaded:
-                    print(
-                        f"Naukri profile resume updated from: {source_resume}"
-                    )
-                    if resume_tailoring:
-                        proposal_builder = ResumeProfileProposal(
-                            resume_tailoring
-                        )
-                        proposal = proposal_builder.create(
-                            profile_config.get(
-                                "profile_update_sections",
-                                [
-                                    "headline",
-                                    "summary",
-                                    "skills",
-                                    "employment",
-                                    "education",
-                                    "projects",
-                                    "certifications",
-                                ],
-                            )
-                        )
-                        proposal_path = proposal_builder.save(
-                            proposal,
-                            profile_config.get(
-                                "profile_proposal_file",
-                                "data/processed/profile_update_proposal.json",
-                            ),
-                        )
-                        print(
-                            "Resume-based Naukri profile changes are ready "
-                            "for review. Existing unmatched records are "
-                            f"preserved. Proposal: {proposal_path}"
-                        )
-            except (
-                OSError,
-                PlaywrightError,
-                RuntimeError,
-                ValueError,
-            ) as error:
-                print(
-                    "\nNaukri profile resume update failed; continuing with "
-                    "job search: "
-                    f"{type(error).__name__}: {error}"
-                )
+            for failure in update_naukri_candidate_profile(
+                browser,
+                profile_config,
+                source_resume,
+                resume_tailoring,
+            ):
+                print(f"\n{failure}")
         else:
             browser.start()
 
@@ -931,6 +975,22 @@ if __name__ == "__main__":
         ),
     )
     actions.add_argument(
+        "--update-all-profiles",
+        action="store_true",
+        help=(
+            "Update configured Naukri and Foundit profiles once without "
+            "running the job search."
+        ),
+    )
+    actions.add_argument(
+        "--update-naukri-profile",
+        action="store_true",
+        help=(
+            "Update Naukri resume, headline, skills, and projects without "
+            "running the job search."
+        ),
+    )
+    actions.add_argument(
         "--prepare-profile-update",
         action="store_true",
         help=(
@@ -986,6 +1046,59 @@ if __name__ == "__main__":
             print(f"Local {platform.title()} browser session is ready.")
         finally:
             browser.close()
+    elif arguments.update_all_profiles:
+        config_manager = ConfigManager()
+        tailoring_config = config_manager.get_resume_tailoring_config()
+        profile_config = config_manager.get_naukri_profile_config()
+        naukri_resume = profile_config.get("resume_path", "data/resume.pdf")
+        naukri_tailoring_config = dict(tailoring_config)
+        naukri_tailoring_config["resume_path"] = naukri_resume
+        naukri_tailoring = ResumeTailoringService.from_config(
+            naukri_tailoring_config
+        )
+        browser = NaukriBrowser(headless=False)
+        failures = []
+        try:
+            browser.start_persistent(
+                profile_config.get(
+                    "browser_profile_directory",
+                    "data/naukri_browser_profile",
+                )
+            )
+            failures.extend(
+                update_naukri_candidate_profile(
+                    browser,
+                    profile_config,
+                    naukri_resume,
+                    naukri_tailoring,
+                    reconcile_profile_fields=True,
+                )
+            )
+        finally:
+            browser.close()
+
+        foundit_config = config_manager.get_resume_platform_configs()[
+            "foundit"
+        ]
+        foundit_resume = foundit_config.get(
+            "resume_path",
+            "data/resume.pdf",
+        )
+        foundit_tailoring_config = dict(tailoring_config)
+        foundit_tailoring_config["resume_path"] = foundit_resume
+        foundit_tailoring = ResumeTailoringService.from_config(
+            foundit_tailoring_config
+        )
+        failures.extend(
+            update_candidate_platform(
+                "foundit",
+                foundit_config,
+                foundit_resume,
+                foundit_tailoring,
+            )
+        )
+        if failures:
+            raise RuntimeError("; ".join(failures))
     elif arguments.update_foundit_profile:
         config_manager = ConfigManager()
         platform_config = config_manager.get_resume_platform_configs()[
@@ -1008,6 +1121,31 @@ if __name__ == "__main__":
         )
         if failures:
             raise RuntimeError("; ".join(failures))
+    elif arguments.update_naukri_profile:
+        config_manager = ConfigManager()
+        profile_config = config_manager.get_naukri_profile_config()
+        resume_path = profile_config.get("resume_path", "data/resume.pdf")
+        resume_config = config_manager.get_resume_tailoring_config()
+        resume_config["resume_path"] = resume_path
+        resume_tailoring = ResumeTailoringService.from_config(resume_config)
+        browser = NaukriBrowser(headless=False)
+        try:
+            browser.start_persistent(
+                profile_config.get(
+                    "browser_profile_directory",
+                    "data/naukri_browser_profile",
+                )
+            )
+            failures = update_naukri_candidate_profile(
+                browser,
+                profile_config,
+                resume_path,
+                resume_tailoring,
+            )
+            if failures:
+                raise RuntimeError("; ".join(failures))
+        finally:
+            browser.close()
     elif arguments.prepare_profile_update:
         config_manager = ConfigManager()
         profile_config = config_manager.get_naukri_profile_config()

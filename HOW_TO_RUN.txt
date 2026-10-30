@@ -51,6 +51,11 @@ COMMANDS YOU WILL USE
 
    venv\Scripts\python.exe main.py --update-foundit-profile
 
+   To update your Naukri resume, headline, keywords, and projects without
+   starting the job search:
+
+   venv\Scripts\python.exe main.py --update-naukri-profile
+
 5. Start the daily job/resume pipeline:
 
    venv\Scripts\python.exe main.py --schedule

@@ -64,3 +64,50 @@ def test_profile_resume_upload_clicks_resume_control_without_role_lookup(
 
     assert page.uploaded_file == str(resume.resolve())
     assert page.clicked_selector.startswith("input[type='button']")
+
+
+def test_persistent_session_reuses_initial_browser_tab(tmp_path, monkeypatch):
+    class FakeContext:
+        def __init__(self):
+            self.initial_page = FakePage()
+            self.pages = [self.initial_page]
+            self.new_page_calls = 0
+
+        def new_page(self):
+            self.new_page_calls += 1
+            return FakePage()
+
+        def close(self):
+            pass
+
+    class FakeChromium:
+        def __init__(self):
+            self.context = FakeContext()
+
+        def launch_persistent_context(self, **kwargs):
+            return self.context
+
+    class FakePlaywright:
+        def __init__(self):
+            self.chromium = FakeChromium()
+
+        def stop(self):
+            pass
+
+    class FakePlaywrightManager:
+        def __init__(self, playwright):
+            self.playwright = playwright
+
+        def start(self):
+            return self.playwright
+
+    playwright = FakePlaywright()
+    monkeypatch.setattr(
+        "src.ingestion.naukri_browser.sync_playwright",
+        lambda: FakePlaywrightManager(playwright),
+    )
+    browser = NaukriBrowser()
+    browser.start_persistent(tmp_path / "naukri_profile")
+
+    assert browser.page is playwright.chromium.context.initial_page
+    assert playwright.chromium.context.new_page_calls == 0

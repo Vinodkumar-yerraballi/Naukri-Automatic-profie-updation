@@ -9,6 +9,7 @@ data/naukri_browser_profile/
 data/foundit_browser_profile/
 data/indeed_browser_profile/
 data/profile_resume_upload.json
+data/naukri_profile_update.json
 data/foundit_resume_upload.json
 data/foundit_profile_update.json
 data/indeed_resume_upload.json

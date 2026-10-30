@@ -57,7 +57,8 @@ class NaukriBrowser:
             headless=self.headless,
             viewport={"width": 1440, "height": 900},
         )
-        self.page = self.browser.new_page()
+        pages = self.browser.pages
+        self.page = pages[0] if pages else self.browser.new_page()
 
     def open_naukri(self):
         """Open the Naukri website."""
@@ -164,6 +165,260 @@ class NaukriBrowser:
                 "The profile page did not confirm the resume upload. "
                 "Check your Naukri profile manually before retrying."
             )
+
+    def update_profile_fields(self, proposal: dict) -> list[str]:
+        """Add resume-supported skills/projects and update the resume headline."""
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        data = proposal.get("data")
+        if not isinstance(data, dict):
+            raise ValueError("The profile proposal has no valid data object.")
+
+        self.page.goto(
+            "https://www.naukri.com/mnjuser/profile",
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        self.page.wait_for_timeout(2000)
+        if self.detect_security_challenge():
+            raise RuntimeError(
+                "Naukri requested a security check. Complete it manually "
+                "and run the profile update again."
+            )
+        if "login" in self.page.url.lower():
+            raise RuntimeError(
+                "Naukri is not signed in. Run "
+                "`python main.py --setup-naukri-session` first."
+            )
+
+        self._open_naukri_section("Projects")
+        changed = []
+        failures = []
+        for section, updater, value in (
+            ("headline", self._update_naukri_headline, data.get("headline")),
+            ("skills", self._update_naukri_skills, data.get("skills", [])),
+            ("projects", self._update_naukri_projects, data.get("projects", [])),
+        ):
+            try:
+                if updater(value):
+                    changed.append(section)
+            except (PlaywrightError, RuntimeError, ValueError) as error:
+                failures.append(
+                    f"{section}: {type(error).__name__}: {error}"
+                )
+        if failures:
+            raise RuntimeError(
+                "Some Naukri profile fields could not be updated: "
+                + "; ".join(failures)
+            )
+        return changed
+
+    def _open_naukri_section(self, section: str) -> None:
+        quick_link = self.page.locator("ul.collection li").filter(
+            has_text=section
+        )
+        if quick_link.count() == 0:
+            raise RuntimeError(
+                f"Could not find Naukri's {section} profile section."
+            )
+        quick_link.first.locator("span.text").click(timeout=10000)
+        card = self._naukri_section_card(section)
+        card.wait_for(state="visible", timeout=10000)
+
+    def _naukri_section_card(self, section: str):
+        heading = self.page.get_by_role(
+            "heading",
+            name=section,
+            exact=True,
+        )
+        if heading.count() == 0:
+            raise RuntimeError(
+                f"Naukri's {section} section did not load."
+            )
+        return heading.first.locator(
+            "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), "
+            "' '), ' card ')][1]"
+        )
+
+    def _open_naukri_editor(self, aria_label: str):
+        edit_button = self.page.get_by_role("button", name=aria_label)
+        if edit_button.count() != 1:
+            raise RuntimeError(
+                f"Could not identify Naukri's '{aria_label}' editor."
+            )
+        edit_button.click(timeout=10000)
+        self.page.wait_for_timeout(300)
+        return self.page
+
+    def _save_naukri_editor(self, field_selector: str) -> None:
+        save_button = self.page.get_by_role(
+            "button",
+            name="Save",
+            exact=True,
+        )
+        if save_button.count() != 1:
+            raise RuntimeError(
+                "Naukri's editor has no unique Save button."
+            )
+        save_button.click(timeout=10000)
+        try:
+            self.page.locator(field_selector).wait_for(
+                state="hidden",
+                timeout=8000,
+            )
+        except PlaywrightError as error:
+            raise RuntimeError(
+                "Naukri kept the profile editor open after Save. Check "
+                "validation messages and the profile manually."
+            ) from error
+
+    def _close_naukri_editor(self) -> None:
+        close_button = self.page.get_by_role("button", name="Close")
+        if close_button.count() and close_button.is_visible():
+            close_button.click(timeout=5000)
+            self.page.wait_for_timeout(300)
+        else:
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(300)
+
+    def _update_naukri_headline(self, headline: object) -> bool:
+        if not isinstance(headline, str) or not headline.strip():
+            return False
+        self._open_naukri_editor("Edit resume headline")
+        field = self.page.locator("#resumeHeadlineTxt")
+        if field.count() != 1:
+            self._close_naukri_editor()
+            raise RuntimeError(
+                "Naukri's resume headline field was not found."
+            )
+        if field.input_value().strip() == headline.strip():
+            self._close_naukri_editor()
+            return False
+        try:
+            field.fill(headline.strip())
+            self._save_naukri_editor("#resumeHeadlineTxt")
+        except (PlaywrightError, RuntimeError, ValueError):
+            self._close_naukri_editor()
+            raise
+        return True
+
+    def _update_naukri_skills(self, skills: object) -> bool:
+        if not isinstance(skills, list):
+            raise ValueError("Proposed skills must be a list.")
+        values = list(
+            dict.fromkeys(
+                skill.strip()
+                for skill in skills
+                if isinstance(skill, str) and skill.strip()
+            )
+        )
+        if not values:
+            return False
+
+        self._open_naukri_editor("Edit key skills")
+        field = self.page.locator("#keySkillSugg")
+        if field.count() != 1:
+            self._close_naukri_editor()
+            raise RuntimeError("Naukri's key-skills field was not found.")
+
+        existing = {
+            text.strip().casefold()
+            for text in self.page.locator(".chipsContainer .chip").all_inner_texts()
+            if text.strip()
+        }
+        added = False
+        try:
+            for skill in values:
+                if skill.casefold() in existing:
+                    continue
+                field.fill(skill)
+                self.page.wait_for_timeout(500)
+                exact_option = self._naukri_exact_suggestion(skill)
+                if exact_option is None:
+                    print(
+                        f"Naukri did not offer an exact key-skill match for "
+                        f"'{skill}'; it was skipped."
+                    )
+                    continue
+                exact_option.click(timeout=10000)
+                self.page.wait_for_timeout(200)
+                existing.add(skill.casefold())
+                added = True
+            if added:
+                self._save_naukri_editor("#keySkillSugg")
+            else:
+                self._close_naukri_editor()
+            return added
+        except (PlaywrightError, RuntimeError, ValueError):
+            self._close_naukri_editor()
+            raise
+
+    def _naukri_exact_suggestion(self, value: str):
+        suggestions = self.page.locator(
+            "li, [role='option'], .sWrap .chip, .suggestor-box li"
+        )
+        for suggestion in suggestions.all():
+            if (
+                suggestion.is_visible()
+                and suggestion.inner_text().strip().casefold()
+                == value.casefold()
+            ):
+                return suggestion
+        return None
+
+    def _update_naukri_projects(self, projects: object) -> bool:
+        if not isinstance(projects, list):
+            raise ValueError("Proposed projects must be a list.")
+        entries = [
+            item
+            for item in projects
+            if isinstance(item, dict)
+            and isinstance(item.get("title"), str)
+            and item["title"].strip()
+        ]
+        if not entries:
+            return False
+
+        card = self._naukri_section_card("Projects")
+        existing = {
+            title.strip().casefold()
+            for title in card.locator(
+                ".project-list .truncate.typ-14Bold"
+            ).all_inner_texts()
+            if title.strip()
+        }
+        changed = False
+        for entry in entries:
+            title = entry["title"].strip()
+            if title.casefold() in existing:
+                continue
+            add_button = card.locator(".add")
+            if add_button.count() != 1:
+                raise RuntimeError(
+                    "Naukri's Add project control could not be identified."
+                )
+            add_button.click(timeout=10000)
+            self.page.wait_for_timeout(300)
+            title_field = self.page.locator("#projectTitle")
+            details_field = self.page.locator("#projectDetails")
+            if title_field.count() != 1 or details_field.count() != 1:
+                self._close_naukri_editor()
+                raise RuntimeError(
+                    "Naukri's project editor fields were not found."
+                )
+            try:
+                title_field.fill(title)
+                description = entry.get("description")
+                if isinstance(description, str) and description.strip():
+                    details_field.fill(description.strip())
+                self._save_naukri_editor("#projectTitle")
+            except (PlaywrightError, RuntimeError, ValueError):
+                self._close_naukri_editor()
+                raise
+            existing.add(title.casefold())
+            changed = True
+        return changed
 
     def submit_application(self, job: dict) -> dict:
         """Submit a one-step Naukri application after explicit user approval."""
