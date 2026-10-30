@@ -19,6 +19,8 @@ class ResumeTailoringService:
 
     ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
     API_VERSION = "2023-06-01"
+    REQUEST_TIMEOUT_SECONDS = 60
+    MAX_REQUEST_ATTEMPTS = 2
 
     def __init__(
         self,
@@ -29,7 +31,7 @@ class ResumeTailoringService:
         provider: str = "ollama",
         base_url: str = "http://localhost:11434",
         fallback_provider: str | None = None,
-        fallback_model: str = "qwen3:8b",
+        fallback_model: str = "qwen3:1.7b",
         fallback_base_url: str = "http://localhost:11434",
     ):
         self.provider = provider.lower()
@@ -108,7 +110,8 @@ class ResumeTailoringService:
             ),
             fallback_provider=config.get("fallback_provider"),
             fallback_model=os.environ.get(
-                "OLLAMA_MODEL", config.get("fallback_model", "qwen3:8b")
+                "OLLAMA_FALLBACK_MODEL",
+                config.get("fallback_model", "qwen3:1.7b"),
             ),
             fallback_base_url=os.environ.get(
                 "OLLAMA_BASE_URL",
@@ -132,10 +135,18 @@ class ResumeTailoringService:
         self._write_docx(output_path, job, tailored_text.strip())
         return output_path
 
-    def complete_prompt(self, prompt: str) -> str:
+    def complete_prompt(
+        self,
+        prompt: str,
+        response_format: str | None = None,
+    ) -> str:
         """Complete a prompt with the primary provider and configured fallback."""
+        if response_format not in {None, "json"}:
+            raise ValueError("The response format must be 'json' or None.")
         try:
-            return self._request_completion(prompt)
+            if response_format is None:
+                return self._request_completion(prompt)
+            return self._request_completion(prompt, response_format)
         except RuntimeError as primary_error:
             if not self.fallback_service:
                 raise
@@ -146,7 +157,12 @@ class ResumeTailoringService:
                 primary_error,
             )
             try:
-                return self.fallback_service._request_completion(prompt)
+                if response_format is None:
+                    return self.fallback_service._request_completion(prompt)
+                return self.fallback_service._request_completion(
+                    prompt,
+                    response_format,
+                )
             except RuntimeError as fallback_error:
                 raise RuntimeError(
                     f"Both {self.provider} and "
@@ -175,14 +191,24 @@ class ResumeTailoringService:
             f"{description}"
         )
 
-    def _request_completion(self, prompt: str) -> str:
+    def _request_completion(
+        self,
+        prompt: str,
+        response_format: str | None = None,
+    ) -> str:
         if self.provider == "ollama":
             url = f"{self.base_url}/api/chat"
             headers = {"content-type": "application/json"}
             payload = {
                 "model": self.model,
                 "stream": False,
-                "options": {"temperature": 0.2},
+                "think": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": (
+                        512 if response_format == "json" else 2048
+                    ),
+                },
                 "messages": [
                     {
                         "role": "system",
@@ -194,6 +220,8 @@ class ResumeTailoringService:
                     {"role": "user", "content": prompt},
                 ],
             }
+            if response_format == "json":
+                payload["format"] = "json"
         elif self.provider == "anthropic":
             url = self.ANTHROPIC_API_URL
             headers = {
@@ -219,6 +247,9 @@ class ResumeTailoringService:
                 "x-goog-api-key": self.api_key or "",
                 "content-type": "application/json",
             }
+            generation_config = {"temperature": 0.2}
+            if response_format == "json":
+                generation_config["responseMimeType"] = "application/json"
             payload = {
                 "system_instruction": {
                     "parts": [
@@ -234,7 +265,7 @@ class ResumeTailoringService:
                 "contents": [
                     {"role": "user", "parts": [{"text": prompt}]}
                 ],
-                "generationConfig": {"temperature": 0.2},
+                "generationConfig": generation_config,
             }
 
         request = Request(
@@ -245,34 +276,61 @@ class ResumeTailoringService:
         )
 
         try:
-            for attempt in range(3):
+            for attempt in range(self.MAX_REQUEST_ATTEMPTS):
                 try:
-                    with urlopen(request, timeout=180) as response:
+                    print(
+                        f"{self.provider.title()} request attempt "
+                        f"{attempt + 1}/{self.MAX_REQUEST_ATTEMPTS}; "
+                        f"timeout {self.REQUEST_TIMEOUT_SECONDS}s."
+                    )
+                    with urlopen(
+                        request,
+                        timeout=self.REQUEST_TIMEOUT_SECONDS,
+                    ) as response:
                         result = json.loads(response.read().decode("utf-8"))
                     break
                 except TimeoutError as error:
-                    if attempt < 2:
+                    if attempt + 1 < self.MAX_REQUEST_ATTEMPTS:
                         time.sleep(2**attempt)
                         continue
                     raise RuntimeError(
-                        f"{self.provider} request timed out after three "
-                        "attempts. Check your connection and try again."
+                        f"{self.provider} request timed out after "
+                        f"{self.MAX_REQUEST_ATTEMPTS} attempts "
+                        f"{self.REQUEST_TIMEOUT_SECONDS}s each). Check your "
+                        "connection and try again."
                     ) from error
                 except HTTPError as error:
-                    if error.code in {500, 502, 503, 504} and attempt < 2:
+                    if (
+                        error.code in {500, 502, 503, 504}
+                        and attempt + 1 < self.MAX_REQUEST_ATTEMPTS
+                    ):
                         time.sleep(2**attempt)
                         continue
+                    detail = self._provider_error_detail(error)
+                    detail_message = (
+                        f" Provider detail: {detail}" if detail else ""
+                    )
                     raise RuntimeError(
                         f"{self.provider} request failed with HTTP "
                         f"{error.code}. Check the provider, model availability, "
                         "API key, and quota."
+                        f"{detail_message}"
                     ) from error
                 except URLError as error:
-                    if isinstance(error.reason, TimeoutError) and attempt < 2:
+                    if (
+                        isinstance(error.reason, TimeoutError)
+                        and attempt + 1 < self.MAX_REQUEST_ATTEMPTS
+                    ):
                         time.sleep(2**attempt)
                         continue
                     raise
         except URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise RuntimeError(
+                    f"{self.provider} request timed out after "
+                    f"{self.REQUEST_TIMEOUT_SECONDS} seconds. Check your "
+                    "connection and try again."
+                ) from error
             raise RuntimeError(
                 f"Could not reach {self.provider}: {error.reason}. "
                 "Check your network connection and provider configuration."
@@ -322,6 +380,37 @@ class ResumeTailoringService:
                 f"{self.provider} response did not contain resume text."
             )
         return text
+
+    def _provider_error_detail(self, error: HTTPError) -> str:
+        try:
+            response_body = error.read().decode("utf-8").strip()
+        except (OSError, UnicodeDecodeError):
+            return ""
+        if not response_body:
+            return ""
+
+        try:
+            payload = json.loads(response_body)
+        except json.JSONDecodeError:
+            detail = response_body
+        else:
+            if isinstance(payload, dict):
+                provider_error = payload.get("error")
+                if isinstance(provider_error, dict):
+                    detail = provider_error.get("message", "")
+                elif isinstance(provider_error, str):
+                    detail = provider_error
+                else:
+                    detail = payload.get("message", "")
+            else:
+                detail = ""
+        if not isinstance(detail, str):
+            return ""
+
+        detail = " ".join(detail.split())
+        if self.api_key:
+            detail = detail.replace(self.api_key, "[redacted]")
+        return detail[:400]
 
     def _output_path(self, job: dict) -> Path:
         label = " ".join(

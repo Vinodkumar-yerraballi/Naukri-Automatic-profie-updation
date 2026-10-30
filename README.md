@@ -3,13 +3,14 @@
 Find recent Naukri listings that fit your goals, compare them with your
 candidate profile, and prepare job-specific resume drafts for your review. The
 project can also upload a changed source resume to signed-in Naukri, Foundit,
-and Indeed profiles.
+Indeed, Shine, Hirist, and Wellfound profiles.
 
 This is a **review-first** job assistant. It requires your terminal approval
 for each job before attempting a supported one-step Naukri application. It
 can update the Naukri resume headline and key skills and add resume-supported
 projects. It can also add resume-supported skills, work experience, and
-projects to Foundit. Wellfound profile changes are not automated.
+projects to Foundit. Other candidate platforms currently support resume
+uploads only.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -26,9 +27,9 @@ projects to Foundit. Wellfound profile changes are not automated.
    text.
 5. Stores matching jobs locally and lets you review the queue.
 6. Can generate a separate DOCX resume draft for a suitable job.
-7. Can upload your changed source PDF to your signed-in Naukri, Foundit, and
-   Indeed profiles, and add resume-supported skills, experience, and projects
-   to Naukri and Foundit.
+7. Can upload your changed source PDF to your signed-in Naukri, Foundit,
+   Indeed, Shine, Hirist, and Wellfound profiles, and add resume-supported
+   skills, experience, and projects to Naukri and Foundit.
 8. Can prepare a Naukri profile-update proposal as JSON for you to review and
    apply manually.
 9. With `application.auto_apply: true`, can attempt a supported one-step
@@ -44,7 +45,9 @@ projects to Foundit. Wellfound profile changes are not automated.
 |-- HOW_TO_RUN_NAUKRI.txt           # Naukri resume/profile instructions
 |-- HOW_TO_RUN_FOUNDIT.txt          # Foundit resume/profile instructions
 |-- HOW_TO_RUN_INDEED.txt           # Indeed resume instructions
-|-- HOW_TO_RUN_WELLFOUND.txt        # Wellfound manual resume instructions
+|-- HOW_TO_RUN_SHINE.txt            # Shine resume instructions
+|-- HOW_TO_RUN_HIRIST.txt           # Hirist resume instructions
+|-- HOW_TO_RUN_WELLFOUND.txt        # Wellfound resume instructions
 |-- config/
 |   |-- config.yaml                 # General paths, database, and logging
 |   |-- profile.yaml                # Candidate skills, education, and roles
@@ -149,7 +152,15 @@ locations focused on jobs you would genuinely consider.
 ### 5. Configure resume-tailoring AI
 
 The default configuration uses Gemini first and Ollama as a local fallback.
-Choose one of these setups:
+To use it, put your key in the project root `.env` file:
+
+```text
+GEMINI_API_KEY=your_key_here
+```
+
+The configured Gemini model is `gemini-3.8-flash`; override it with
+`GEMINI_MODEL` if needed. Keep API keys out of source files, command history,
+and chat messages.
 
 **Gemini with local Ollama fallback**
 
@@ -164,10 +175,12 @@ Choose one of these setups:
    fallback model:
 
    ```powershell
-   ollama pull qwen3:8b
+   ollama pull qwen3:1.7b
    ```
 
-   Keep Ollama running when you use it as a fallback.
+   Keep Ollama running when you use it as a fallback. This smaller model is
+   configured to reduce memory use on machines that cannot load qwen3:8b.
+   Set `OLLAMA_FALLBACK_MODEL` in `.env` to override the fallback model.
 
 Resume text and job descriptions are sent to the selected cloud AI when using
 Gemini or Anthropic. Review the provider's current privacy, data-use, pricing,
@@ -180,11 +193,9 @@ Set `provider: ollama` and `model: qwen3:8b` under `resume_tailoring` in
 `config\job_preferences.yaml`. Remove or comment out the
 `fallback_provider` setting if you do not want a second provider.
 
-**Anthropic**
-
-Set `provider: anthropic` in `config\job_preferences.yaml` and configure
-`ANTHROPIC_API_KEY` in your Windows user environment. Keep API keys out of
-source files and chat messages.
+To switch to Anthropic instead, set `provider: anthropic` and the desired
+Claude model in `config\job_preferences.yaml`, then set `ANTHROPIC_API_KEY`
+in `.env`.
 
 ### 6. Sign in locally (recommended for resume upload)
 
@@ -206,11 +217,14 @@ opened browser; do not put account passwords in project files:
 ```powershell
 .\.venv\Scripts\python.exe main.py --setup-foundit-session
 .\.venv\Scripts\python.exe main.py --setup-indeed-session
+.\.venv\Scripts\python.exe main.py --setup-shine-session
+.\.venv\Scripts\python.exe main.py --setup-hirist-session
+.\.venv\Scripts\python.exe main.py --setup-wellfound-session
 ```
 
-Each saved browser profile is stored under `data\foundit_browser_profile` or
-`data\indeed_browser_profile`. These directories are sensitive. Indeed may
-redirect to a region-specific sign-in or require additional verification.
+Each platform has its own saved browser-profile directory under `data\`.
+These directories are sensitive. Complete sign-in, OTP, CAPTCHA, and
+verification yourself in the visible browser.
 
 ## Run the pipeline
 
@@ -234,6 +248,22 @@ To update Naukri only, without running the job search:
 
 ```powershell
 .\.venv\Scripts\python.exe main.py --update-naukri-profile
+```
+
+For individual resume updates, use the matching command:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --update-foundit-profile
+.\.venv\Scripts\python.exe main.py --update-indeed-profile
+.\.venv\Scripts\python.exe main.py --update-shine-profile
+.\.venv\Scripts\python.exe main.py --update-hirist-profile
+.\.venv\Scripts\python.exe main.py --update-wellfound-profile
+```
+
+To update all enabled platforms once without starting the Naukri job search:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --update-all-profiles
 ```
 
 ### Run every day
@@ -266,12 +296,12 @@ profile fields.
   resume with the last confirmed upload. It attempts to upload only when the
   file has changed. Login expiry, verification, or upload-confirmation problems
   require manual attention.
-- Foundit and Indeed are also enabled for changed-resume upload in
-  `config\job_preferences.yaml`. Each platform has its own saved session and
-  upload-state file. An upload is recorded only after the site displays a
-  recognized success message; if the site's page changes or does not confirm
-  the upload, check it manually and retry. The upload automation does not
-  bypass login, CAPTCHA, or verification.
+- Foundit, Indeed, Shine, Hirist, and Wellfound can upload changed resumes.
+  Each platform has a separate browser-profile directory and upload-state
+  file. An upload is recorded only after the site displays a recognized
+  success message; if a site changes or does not confirm the upload, check it
+  manually and retry. The automation does not bypass login, CAPTCHA, or
+  verification.
 - Foundit can add missing resume-supported skills, employment entries, and
   projects. It preserves existing entries rather than replacing them. Profile
   fields are processed once per resume version using the configured AI
@@ -280,10 +310,16 @@ profile fields.
   resume-supported projects. Existing projects are preserved. Profile fields
   are processed once per source-resume version using the configured AI
   provider. Use `--update-naukri-profile` to run this without the job search.
-- Wellfound is not automatically updated. Its resume workflow may be tied to a
-  specific application; attach and verify your resume there yourself.
-- Naukri profile fields are not automatically changed; the profile proposal
-  is for manual review.
+- Indeed, Hirist, and Wellfound currently support resume upload only; they do
+  not automatically edit profile fields or submit applications. Shine also
+  updates its summary, skills, explicitly stated total experience, and current
+  company/designation from resume-supported information. Shine does not expose
+  supported project or education editors, and its certification form requires
+  validity details not extracted from the resume, so those sections are left
+  unchanged.
+- The Anthropic provider uses `ANTHROPIC_API_KEY` from `.env` to create
+  job-specific DOCX drafts. Drafts are saved locally for review; the source
+  resume is not overwritten, and drafts are not uploaded automatically.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.
@@ -342,7 +378,9 @@ profile fields.
 ## Privacy and safe handling
 
 - Never commit `.env`, API keys, passwords, personal resumes, generated drafts,
-  or any saved browser session.
+  browser sessions, or Shine session-state files. Shine's
+  `data\shine_session_state.json` contains authentication cookies and
+  session-storage values; treat it as a credential and keep it private.
 - The `.gitignore` excludes the local resume, browser session, upload state,
   generated drafts, and profile proposal.
 - Review cloud AI data-use terms before sending resume or job-description

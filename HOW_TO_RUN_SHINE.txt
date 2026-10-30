@@ -1,0 +1,41 @@
+SHINE RESUME UPDATE GUIDE
+=========================
+
+Run these commands from the project folder in PowerShell. The examples use
+the project's .venv virtual environment.
+
+1. Sign in once and save the local Shine session:
+
+   .venv\Scripts\python.exe main.py --setup-shine-session
+
+   The command opens Shine's sign-in page. Complete login and any OTP/checks,
+   then wait until the resume-upload page appears in the browser before
+   pressing Enter in PowerShell. The command verifies that Shine did not
+   redirect back to login. Cookies and session storage are saved in
+   data\shine_session_state.json to keep the sign-in available to later
+   commands. Treat that file and data\shine_browser_profile as sensitive.
+
+2. Replace data\resume.pdf with your updated, text-based resume.
+
+3. Update Shine only:
+
+   .venv\Scripts\python.exe main.py --update-shine-profile
+
+The command uploads the resume when its contents differ from the last
+confirmed upload. The upload state is stored in
+data\shine_resume_upload.json. It then updates supported profile fields from
+the resume and records that state in data\shine_profile_update.json. The
+configured Shine login, upload, and profile-edit URLs are in
+config\job_preferences.yaml. The resume upload URL is
+https://www.shine.com/myshine/resume/upload. Shine uploads files up to 5 MB.
+If Shine changes these pages, open them manually while signed in and update
+the corresponding shine_profile URL in config\job_preferences.yaml.
+
+The updater also uses resume-supported details to update Shine's profile
+summary, skills, explicitly stated total experience, and current company and
+designation. Existing skills are preserved. Shine's current editor does not
+provide supported project or education editors, and the certification form
+requires validity information not extracted from the resume; those sections
+are left unchanged. The site must confirm each supported update before it is
+recorded. Complete sign-in and security checks yourself, and verify the resume
+and profile details on Shine after each update.

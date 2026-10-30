@@ -3,7 +3,7 @@ FOUNDIT RESUME GUIDE
 
 From the project directory in PowerShell, create a local Foundit session:
 
-   venv\Scripts\python.exe main.py --setup-foundit-session
+   .venv\Scripts\python.exe main.py --setup-foundit-session
 
 Sign in yourself in the opened browser, complete any checks, and press Enter
 in PowerShell. The local browser profile is saved in
@@ -12,7 +12,7 @@ data\foundit_browser_profile. Keep it private.
 Replace data\resume.pdf with your updated text-based PDF. To update Foundit
 only, without starting the Naukri job search, run:
 
-   venv\Scripts\python.exe main.py --update-foundit-profile
+   .venv\Scripts\python.exe main.py --update-foundit-profile
 
 The command uploads a changed resume and uses the configured AI provider to
 extract resume-supported skills, employment, and projects. It adds missing
@@ -21,10 +21,10 @@ even when the resume file has not changed, so rerunning the command can add
 skills or records that were missing before. Confirm the results on Foundit
 after the command.
 
-To update Naukri and Foundit together without starting the Naukri job search,
-run:
+To update Naukri and every other enabled platform without starting the
+Naukri job search, run:
 
-   venv\Scripts\python.exe main.py --update-all-profiles
+   .venv\Scripts\python.exe main.py --update-all-profiles
 
 The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
 this command daily at 09:00 Asia/Kolkata. Keep your Windows account signed in

@@ -72,7 +72,13 @@ class ConfigManager:
         """Return resume-update configuration for supported platforms."""
         return {
             platform: self.preferences.get(f"{platform}_profile", {})
-            for platform in ("foundit", "indeed")
+            for platform in (
+                "foundit",
+                "indeed",
+                "shine",
+                "hirist",
+                "wellfound",
+            )
         }
 
     def get_minimum_score(self) -> float:

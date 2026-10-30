@@ -6,7 +6,7 @@ Open PowerShell and move to the project folder:
    cd "C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation"
 
 Use the commands below from this folder. The project virtual environment is
-named "venv".
+named ".venv".
 
 
 COMMANDS YOU WILL USE
@@ -15,22 +15,25 @@ COMMANDS YOU WILL USE
 1. Save or refresh your local Naukri sign-in session (run once, or if login
    has expired):
 
-   venv\Scripts\python.exe main.py --setup-naukri-session
+   .venv\Scripts\python.exe main.py --setup-naukri-session
 
    Sign in yourself in the browser window, complete any verification, return
    to PowerShell, and press Enter. Never put your Naukri password in a file.
 
-2. Save or refresh separate local Foundit and Indeed sessions:
+2. Save or refresh separate local sessions for each platform:
 
-   venv\Scripts\python.exe main.py --setup-foundit-session
-   venv\Scripts\python.exe main.py --setup-indeed-session
+   .venv\Scripts\python.exe main.py --setup-foundit-session
+   .venv\Scripts\python.exe main.py --setup-indeed-session
+   .venv\Scripts\python.exe main.py --setup-shine-session
+   .venv\Scripts\python.exe main.py --setup-hirist-session
+   .venv\Scripts\python.exe main.py --setup-wellfound-session
 
    Sign in yourself in each browser window and press Enter. Never put account
    passwords in a file. The browser profiles are stored under data\.
 
 3. Create a profile-field proposal from your current source resume:
 
-   venv\Scripts\python.exe main.py --prepare-profile-update
+   .venv\Scripts\python.exe main.py --prepare-profile-update
 
    The proposal is saved at:
 
@@ -39,26 +42,32 @@ COMMANDS YOU WILL USE
 4. Run one job search now, attempt to upload a changed source resume, and
    review pending jobs interactively:
 
-   venv\Scripts\python.exe main.py
+   .venv\Scripts\python.exe main.py
 
    Keep the PowerShell window open and available for input. If
    application.auto_apply is true, approving a job with A can trigger a
    supported one-step Apply action on Naukri. Review the job and resume
    carefully before approving.
 
-   To update Foundit resume, skills, experience, and projects without starting
-   the Naukri job search:
+   To update an individual platform without starting the Naukri job search:
 
-   venv\Scripts\python.exe main.py --update-foundit-profile
+   .venv\Scripts\python.exe main.py --update-foundit-profile
+   .venv\Scripts\python.exe main.py --update-indeed-profile
+   .venv\Scripts\python.exe main.py --update-shine-profile
+   .venv\Scripts\python.exe main.py --update-hirist-profile
+   .venv\Scripts\python.exe main.py --update-wellfound-profile
+   .venv\Scripts\python.exe main.py --update-naukri-profile
 
-   To update your Naukri resume, headline, keywords, and projects without
-   starting the job search:
+   To update every enabled platform at once:
 
-   venv\Scripts\python.exe main.py --update-naukri-profile
+   .venv\Scripts\python.exe main.py --update-all-profiles
+
+   Shine, Hirist, Indeed, and Wellfound commands upload resumes only. Naukri
+   and Foundit also update configured resume-supported profile fields.
 
 5. Start the daily job/resume pipeline:
 
-   venv\Scripts\python.exe main.py --schedule
+   .venv\Scripts\python.exe main.py --schedule
 
    The configured schedule is 09:00 Asia/Kolkata. Keep the laptop on, awake,
    connected to the internet, and the PowerShell window open.
@@ -75,33 +84,30 @@ UPDATE YOUR RESUME ON SUPPORTED PLATFORMS
 3. Sign in to each platform once using the setup commands above. To have the
    app attempt the changed-resume upload, run:
 
-   venv\Scripts\python.exe main.py
+   .venv\Scripts\python.exe main.py
 
    The normal run compares the PDF with the last confirmed upload and attempts
-   an upload only when it has changed. It uses separate Naukri, Foundit, and
-   Indeed sessions and tracks each platform independently. If a site asks for
+   an upload only when it has changed. It uses separate browser sessions and
+   state files for each enabled platform. If a site asks for
    login/verification or does not confirm the upload, check that profile
-   manually before retrying.
-
-Wellfound is not automatically updated; upload or attach the resume there
-yourself when appropriate. The profile-proposal command does not upload the
-PDF or change profile fields.
+   manually before retrying. The profile-proposal command does not upload the
+   PDF or change profile fields.
 
 
 UPDATE PROFILE FIELDS
 ---------------------
 
-The app does not automatically edit the Naukri headline, desired job title,
-summary, skills, employment, education, projects, or certifications.
+When enabled in config\job_preferences.yaml, the app updates the Naukri
+headline, key skills, and projects from resume-supported information. Foundit
+can add resume-supported skills, work experience, and projects. It does not
+overwrite existing project or work-history records. Shine, Hirist, Indeed,
+and Wellfound currently upload the resume only.
 
-1. Generate a proposal using the command above.
-2. Open data\processed\profile_update_proposal.json and check every detail
-   against your real experience and resume.
-3. Sign in to Naukri and open your profile's edit page.
-4. Copy only accurate details into the matching Naukri fields and save them
-   yourself. For example, set your desired job title to Data Scientist if
-   that is the role you want. The proposal may suggest a separate headline.
-5. Review the profile after saving.
+Use --prepare-profile-update to create a JSON proposal for manual review
+without changing profile fields. Open data\processed\profile_update_proposal.json,
+check every detail against your real experience, and edit your profile
+yourself if you prefer not to use the automated Naukri/Foundit field updates.
+Review each platform after an update.
 
 To change the roles and skills used by this project's job matching, edit:
 
@@ -134,7 +140,7 @@ The application settings are in config\job_preferences.yaml:
 
 With auto_apply set to true, the interactive command is:
 
-   venv\Scripts\python.exe main.py
+   .venv\Scripts\python.exe main.py
 
 For each pending job, inspect the job details and draft, then choose:
 

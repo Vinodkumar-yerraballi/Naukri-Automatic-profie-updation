@@ -10,6 +10,7 @@ PROFILE_SECTIONS = (
     "headline",
     "summary",
     "skills",
+    "total_experience",
     "employment",
     "education",
     "projects",
@@ -38,7 +39,10 @@ class ResumeProfileProposal:
             raise ValueError("Select at least one profile section.")
 
         prompt = self._build_prompt(requested)
-        raw_response = self.ai_service.complete_prompt(prompt)
+        raw_response = self.ai_service.complete_prompt(
+            prompt,
+            response_format="json",
+        )
         data = self._parse_response(raw_response)
         return {
             "created_at": datetime.now().astimezone().isoformat(),
@@ -67,6 +71,10 @@ class ResumeProfileProposal:
             "headline": "string or null",
             "summary": "string or null",
             "skills": ["strings explicitly supported by the resume"],
+            "total_experience": (
+                "string or null; include only when the resume explicitly "
+                "states total professional experience"
+            ),
             "employment": [
                 {
                     "title": "string or null",
@@ -116,7 +124,8 @@ class ResumeProfileProposal:
             "notice period, or other personal/contact details. Do not remove "
             "or replace any existing profile records not found in the resume. "
             "Keep headline and summary concise and factual. Return no Markdown "
-            "fences or commentary.\n\n"
+            "fences or commentary. Do not calculate total experience from "
+            "dates; use null unless the resume explicitly states it.\n\n"
             "Source resume:\n"
             f"{self.ai_service.resume_text}"
         )
@@ -143,7 +152,7 @@ class ResumeProfileProposal:
                 "The AI profile proposal has an unexpected field set."
             )
 
-        for key in ("headline", "summary"):
+        for key in ("headline", "summary", "total_experience"):
             if data[key] is not None and not isinstance(data[key], str):
                 raise ValueError(f"Profile field '{key}' must be text or null.")
         for key in ("skills", "employment", "education", "projects", "certifications"):

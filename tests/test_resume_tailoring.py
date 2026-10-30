@@ -1,3 +1,4 @@
+import io
 import json
 from urllib.error import HTTPError
 
@@ -59,6 +60,32 @@ def test_create_draft_requires_description(tmp_path):
         assert "job description" in str(error)
     else:
         raise AssertionError("A description-less job should be rejected.")
+
+
+def test_anthropic_provider_loads_key_from_environment(tmp_path, monkeypatch):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text(
+        "ANTHROPIC_API_KEY=test-anthropic-key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    service = ResumeTailoringService.from_config(
+        {
+            "enabled": True,
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-5",
+            "resume_path": str(resume_path),
+            "output_directory": str(tmp_path / "drafts"),
+        }
+    )
+
+    assert service is not None
+    assert service.provider == "anthropic"
+    assert service.api_key == "test-anthropic-key"
+    assert service.model == "claude-sonnet-4-5"
 
 
 def test_create_draft_falls_back_to_local_provider(tmp_path, monkeypatch):
@@ -204,7 +231,47 @@ def test_ollama_completion_uses_local_api_without_api_key(tmp_path, monkeypatch)
     assert calls["url"] == "http://localhost:11434/api/chat"
     assert calls["payload"]["model"] == "qwen3:8b"
     assert calls["payload"]["stream"] is False
+    assert calls["payload"]["think"] is False
+    assert calls["payload"]["options"]["num_predict"] == 2048
     assert "X-api-key" not in calls["headers"]
+
+
+def test_ollama_json_completion_requests_json_mode(tmp_path, monkeypatch):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        provider="ollama",
+    )
+    calls = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"message": {"content": '{"skills": ["Python"]}'}}
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(resume_tailoring, "urlopen", fake_urlopen)
+
+    result = service.complete_prompt(
+        "Extract resume facts",
+        response_format="json",
+    )
+
+    assert result == '{"skills": ["Python"]}'
+    assert calls["payload"]["format"] == "json"
+    assert calls["payload"]["options"]["num_predict"] == 512
 
 
 def test_gemini_completion_uses_api_key_header(tmp_path, monkeypatch):
@@ -255,6 +322,48 @@ def test_gemini_completion_uses_api_key_header(tmp_path, monkeypatch):
     )
     assert calls["headers"]["X-goog-api-key"] == "test-gemini-key"
     assert calls["payload"]["system_instruction"]["parts"]
+    assert "responseMimeType" not in calls["payload"]["generationConfig"]
+
+
+def test_gemini_json_completion_requests_json_mime_type(tmp_path, monkeypatch):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        api_key="test-gemini-key",
+        provider="gemini",
+    )
+    calls = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": "{}"}]}}
+                    ]
+                }
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(resume_tailoring, "urlopen", fake_urlopen)
+
+    service.complete_prompt("Extract resume facts", response_format="json")
+
+    assert (
+        calls["payload"]["generationConfig"]["responseMimeType"]
+        == "application/json"
+    )
 
 
 def test_gemini_retries_temporary_server_failure(tmp_path, monkeypatch):
@@ -346,7 +455,7 @@ def test_gemini_retries_timeout(tmp_path, monkeypatch):
 
     assert result == "Resume draft"
     assert len(attempts) == 2
-    assert timeouts == [180, 180]
+    assert timeouts == [60, 60]
     assert sleeps == [1]
 
 
@@ -381,7 +490,47 @@ def test_gemini_reports_persistent_server_failure(tmp_path, monkeypatch):
     else:
         raise AssertionError("Persistent server errors should be reported.")
 
-    assert len(attempts) == 3
+    assert len(attempts) == 2
+
+
+def test_provider_http_error_includes_detail_without_api_key(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    secret = "secret-gemini-api-key"
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        api_key=secret,
+        provider="gemini",
+    )
+
+    def fail_with_bad_request(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            {},
+            io.BytesIO(
+                json.dumps(
+                    {
+                        "error": {
+                            "message": f"Invalid model; token was {secret}"
+                        }
+                    }
+                ).encode("utf-8")
+            ),
+        )
+
+    monkeypatch.setattr(resume_tailoring, "urlopen", fail_with_bad_request)
+
+    with pytest.raises(RuntimeError) as error:
+        service._request_completion("Make a resume draft")
+
+    assert "Invalid model" in str(error.value)
+    assert secret not in str(error.value)
 
 
 def test_gemini_provider_requires_api_key(tmp_path, monkeypatch):
@@ -421,3 +570,33 @@ def test_gemini_provider_loads_key_from_local_dotenv(tmp_path, monkeypatch):
 
     assert service is not None
     assert service.api_key == "test-key-from-dotenv"
+
+
+def test_ollama_fallback_model_can_be_overridden_separately(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text(
+        "GEMINI_API_KEY=test-gemini-key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
+    monkeypatch.setenv("OLLAMA_FALLBACK_MODEL", "qwen3:1.7b")
+
+    service = ResumeTailoringService.from_config(
+        {
+            "enabled": True,
+            "provider": "gemini",
+            "fallback_provider": "ollama",
+            "fallback_model": "qwen3:8b",
+            "resume_path": str(resume_path),
+        }
+    )
+
+    assert service is not None
+    assert service.fallback_service is not None
+    assert service.fallback_service.model == "qwen3:1.7b"

@@ -64,7 +64,7 @@ resume_tailoring:
 
   fallback_provider: ollama
 
-  fallback_model: qwen3:8b
+  fallback_model: qwen3:1.7b
 
   fallback_base_url: http://localhost:11434
 
@@ -124,6 +124,65 @@ indeed_profile:
   browser_profile_directory: data/indeed_browser_profile
 
   upload_state_file: data/indeed_resume_upload.json
+
+
+shine_profile:
+
+  update_resume: true
+
+  update_profile_fields: true
+
+  resume_path: data/resume.pdf
+
+  login_url: https://www.shine.com/pages/myshine/login
+
+  profile_url: https://www.shine.com/myshine/resume/upload
+
+  profile_edit_url: https://www.shine.com/myshine/myprofile
+
+  browser_profile_directory: data/shine_browser_profile
+
+  session_state_file: data/shine_session_state.json
+
+  upload_state_file: data/shine_resume_upload.json
+
+  profile_update_state_file: data/shine_profile_update.json
+
+  profile_update_sections:
+    - summary
+    - skills
+    - total_experience
+    - employment
+
+
+hirist_profile:
+
+  update_resume: true
+
+  resume_path: data/resume.pdf
+
+  login_url: https://www.hirist.tech/login
+
+  profile_url: https://www.hirist.tech/candidate/profile
+
+  browser_profile_directory: data/hirist_browser_profile
+
+  upload_state_file: data/hirist_resume_upload.json
+
+
+wellfound_profile:
+
+  update_resume: true
+
+  resume_path: data/resume.pdf
+
+  login_url: https://wellfound.com/login
+
+  profile_url: https://wellfound.com/profile/edit
+
+  browser_profile_directory: data/wellfound_browser_profile
+
+  upload_state_file: data/wellfound_resume_upload.json
 
 
 schedule:

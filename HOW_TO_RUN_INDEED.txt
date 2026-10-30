@@ -3,7 +3,7 @@ INDEED RESUME GUIDE
 
 From the project directory in PowerShell, create a local Indeed session:
 
-   venv\Scripts\python.exe main.py --setup-indeed-session
+   .venv\Scripts\python.exe main.py --setup-indeed-session
 
 Sign in yourself in the opened browser, complete any checks, and press Enter
 in PowerShell. The local browser profile is saved in
@@ -12,7 +12,7 @@ data\indeed_browser_profile. Keep it private.
 Replace data\resume.pdf with your updated text-based PDF. Run the normal
 pipeline:
 
-   venv\Scripts\python.exe main.py
+   .venv\Scripts\python.exe main.py
 
 The app attempts an upload only when the resume has changed since the last
 confirmed Indeed upload. Its state is tracked in

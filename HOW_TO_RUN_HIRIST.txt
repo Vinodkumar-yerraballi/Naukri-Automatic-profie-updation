@@ -1,0 +1,37 @@
+HIRIST RESUME UPDATE GUIDE
+==========================
+
+Run these commands from the project folder in PowerShell. The examples use
+the project's .venv virtual environment.
+
+1. Sign in once and save the local Hirist session:
+
+   .venv\Scripts\python.exe main.py --setup-hirist-session
+
+   Sign in yourself in the browser, complete any checks, then press Enter in
+   PowerShell. The session is stored separately in
+   data\hirist_browser_profile. Keep that folder private.
+
+2. Replace data\resume.pdf with your updated, text-based resume.
+
+3. Update Hirist only:
+
+   .venv\Scripts\python.exe main.py --update-hirist-profile
+
+The command uploads the resume when its contents differ from the last
+confirmed upload. The upload state is stored in
+data\hirist_resume_upload.json. The configured Hirist login/profile URLs are
+in config\job_preferences.yaml and can be adjusted if Hirist changes its
+pages.
+
+If update reports a navigation timeout or says the Hirist profile page is
+unavailable, the configured profile URL may not be the resume-management
+page. Sign in with the setup command, navigate manually to your candidate
+profile/resume page, and copy that page's URL from the address bar. Set
+hirist_profile.profile_url to that URL in config\job_preferences.yaml and
+retry. Do not share passwords, OTPs, or private session data.
+
+This updater uploads the resume only; it does not edit Hirist profile fields
+or apply to jobs. The site must confirm the upload before it is recorded.
+Complete sign-in and security checks yourself, and verify the resume on
+Hirist after each update.

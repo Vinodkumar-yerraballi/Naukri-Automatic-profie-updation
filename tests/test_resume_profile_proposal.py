@@ -17,7 +17,8 @@ class FakeAIService:
         self.prompt = prompt
         return self.response
 
-    def complete_prompt(self, prompt):
+    def complete_prompt(self, prompt, response_format=None):
+        assert response_format == "json"
         return self._request_completion(prompt)
 
 
@@ -26,6 +27,7 @@ def valid_profile():
         "headline": "Data Analyst skilled in Python and SQL",
         "summary": "Applied mathematics graduate with data analysis skills.",
         "skills": ["Python", "SQL"],
+        "total_experience": None,
         "employment": [],
         "education": [
             {
@@ -51,6 +53,9 @@ def test_create_proposal_limits_prompt_and_marks_review_required():
     assert proposal["unmatched_existing_records"] == "preserve"
     assert proposal["sections"] == ["education", "headline"]
     assert "phone numbers" in ai_service.prompt
+    assert "explicitly states total professional experience" in (
+        ai_service.prompt
+    )
     assert '"headline"' in ai_service.prompt
 
 

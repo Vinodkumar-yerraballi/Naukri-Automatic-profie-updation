@@ -1,9 +1,11 @@
 import hashlib
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
+from urllib.parse import urlparse
 
 from playwright.sync_api import (
     Error as PlaywrightError,
@@ -25,8 +27,21 @@ PLATFORM_PAGES = {
         "login": "https://secure.indeed.com/",
         "profile": "https://profile.indeed.com/",
     },
+    "shine": {
+        "login": "https://www.shine.com/pages/myshine/login",
+        "profile": "https://www.shine.com/myshine/resume/upload",
+        "profile_edit": "https://www.shine.com/myshine/myprofile",
+    },
+    "hirist": {
+        "login": "https://www.hirist.tech/login",
+        "profile": "https://www.hirist.tech/candidate/profile",
+    },
+    "wellfound": {
+        "login": "https://wellfound.com/login",
+        "profile": "https://wellfound.com/users/edit",
+    },
 }
-PROFILE_STATE_PLATFORMS = {"foundit", "naukri"}
+PROFILE_STATE_PLATFORMS = {"foundit", "naukri", "shine"}
 
 
 class ProfileFieldBrowser(Protocol):
@@ -43,13 +58,34 @@ RESUME_FILE_INPUT_SELECTOR = (
 
 
 class CandidatePlatformBrowser:
-    """Browser session for user-signed-in Foundit and Indeed profiles."""
+    """Browser session for user-signed-in candidate profiles."""
 
-    def __init__(self, platform: str, headless: bool = False):
+    def __init__(
+        self,
+        platform: str,
+        headless: bool = False,
+        platform_config: dict | None = None,
+    ):
         if platform not in PLATFORM_PAGES:
             raise ValueError(f"Unsupported resume platform: {platform}")
         self.platform = platform
         self.headless = headless
+        self.pages = dict(PLATFORM_PAGES[platform])
+        self.session_state_path = None
+        if platform_config:
+            for page_name in ("login", "profile", "profile_edit"):
+                configured_url = platform_config.get(f"{page_name}_url")
+                if isinstance(configured_url, str) and configured_url.strip():
+                    self.pages[page_name] = configured_url.strip()
+            if platform == "shine":
+                self.session_state_path = Path(
+                    platform_config.get(
+                        "session_state_file",
+                        "data/shine_session_state.json",
+                    )
+                )
+        elif platform == "shine":
+            self.session_state_path = Path("data/shine_session_state.json")
         self.playwright = None
         self.context = None
         self.page = None
@@ -74,15 +110,224 @@ class CandidatePlatformBrowser:
         )
         pages = self.context.pages
         self.page = pages[0] if pages else self.context.new_page()
+        if self.platform == "shine":
+            self._restore_shine_session()
 
     def setup_login(self) -> None:
         if self.page is None:
             raise RuntimeError("Browser is not started.")
         self.page.goto(
-            PLATFORM_PAGES[self.platform]["login"],
+            self.pages["login"],
             wait_until="domcontentloaded",
             timeout=60000,
         )
+
+    def verify_shine_session(self) -> None:
+        if self.platform != "shine":
+            raise ValueError("Session verification is only implemented for Shine.")
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        response = self.page.goto(
+            self.pages["profile"],
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        response_status = (
+            getattr(response, "status", None) if response is not None else None
+        )
+        current_url = self.page.url.lower()
+        if (
+            (response_status is not None and response_status >= 400)
+            or "/myshine/login" in current_url
+            or self.page.locator("#myfile").count() != 1
+        ):
+            raise RuntimeError(
+                "Shine sign-in was not verified. In the opened browser, "
+                "complete login until the resume-upload page appears, then "
+                "run `python main.py --setup-shine-session` again."
+            )
+        self._save_shine_session()
+
+    def prepare_profile_update(self) -> None:
+        if self.platform != "shine":
+            raise ValueError(
+                "Profile editor preparation is only implemented for Shine."
+            )
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        response = self.page.goto(
+            self.pages["profile_edit"],
+            wait_until="domcontentloaded",
+            timeout=60000,
+        )
+        response_status = (
+            getattr(response, "status", None) if response is not None else None
+        )
+        current_url = self.page.url.lower()
+        profile_update_button = self.page.get_by_role(
+            "button",
+            name="Update",
+            exact=True,
+        )
+        if (
+            (response_status is not None and response_status >= 400)
+            or "/myshine/login" in current_url
+        ):
+            raise RuntimeError(
+                "Shine redirected to sign-in or returned an error while "
+                "opening the profile editor. Complete sign-in in the "
+                "browser, then run `python main.py --setup-shine-session` "
+                "before retrying."
+            )
+        try:
+            profile_update_button.wait_for(
+                state="visible",
+                timeout=30000,
+            )
+        except PlaywrightError as error:
+            current_path = urlparse(self.page.url).path
+            if "/myshine/login" in self.page.url.lower():
+                raise RuntimeError(
+                    "Shine redirected to sign-in while the profile editor "
+                    "was loading. Run `python main.py "
+                    "--setup-shine-session` and complete sign-in."
+                ) from error
+            raise RuntimeError(
+                "Shine's profile editor did not finish loading: its Update "
+                "button was not visible after 30 seconds "
+                f"(current page: {current_path or 'unknown'})."
+            ) from error
+
+    def _restore_shine_session(self) -> None:
+        if self.session_state_path is None or not self.session_state_path.is_file():
+            return
+        try:
+            state = json.loads(
+                self.session_state_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                "Could not read the saved Shine browser session state: "
+                f"{self.session_state_path}"
+            ) from error
+        if not isinstance(state, dict):
+            raise RuntimeError(
+                "Saved Shine browser session state has an invalid format."
+            )
+
+        cookies = state.get("cookies", [])
+        if not isinstance(cookies, list):
+            raise RuntimeError(
+                "Saved Shine browser session cookies have an invalid format."
+            )
+        if cookies:
+            self.context.add_cookies(cookies)
+
+        session_storage = state.get("session_storage", {})
+        if not isinstance(session_storage, dict):
+            raise RuntimeError(
+                "Saved Shine session storage has an invalid format."
+            )
+        if session_storage:
+            parsed_url = urlparse(self.pages["profile"])
+            origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            encoded_origin = json.dumps(origin)
+            encoded_storage = json.dumps(session_storage)
+            self.context.add_init_script(
+                script=(
+                    "(() => {"
+                    f"if (window.location.origin === {encoded_origin}) {{"
+                    f"const saved = {encoded_storage};"
+                    "for (const [key, value] of Object.entries(saved)) {"
+                    "window.sessionStorage.setItem(key, value);"
+                    "}"
+                    "}"
+                    "})();"
+                )
+            )
+
+    def _save_shine_session(self) -> None:
+        if (
+            self.session_state_path is None
+            or self.context is None
+            or self.page is None
+        ):
+            raise RuntimeError(
+                "Cannot save Shine session state before the browser is ready."
+            )
+
+        session_storage = {}
+        previous_session_storage = {}
+        if self.session_state_path.is_file():
+            try:
+                previous_state = json.loads(
+                    self.session_state_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                raise RuntimeError(
+                    "Could not read the previous Shine browser session state: "
+                    f"{self.session_state_path}"
+                ) from error
+            if isinstance(previous_state, dict):
+                previous_storage = previous_state.get("session_storage", {})
+                if isinstance(previous_storage, dict):
+                    previous_session_storage = previous_storage
+
+        storage_error = None
+        for attempt in range(4):
+            try:
+                session_storage = self.page.evaluate(
+                    """() => Object.fromEntries(
+                        Array.from(
+                            {length: sessionStorage.length},
+                            (_, index) => {
+                                const key = sessionStorage.key(index);
+                                return [
+                                    key,
+                                    sessionStorage.getItem(key)
+                                ];
+                            }
+                        )
+                    )"""
+                )
+                if not isinstance(session_storage, dict):
+                    raise RuntimeError(
+                        "Shine returned invalid session storage data."
+                    )
+                storage_error = None
+                break
+            except PlaywrightError as error:
+                if "execution context was destroyed" not in str(error).lower():
+                    raise
+                storage_error = error
+                if attempt < 3:
+                    self.page.wait_for_timeout(500 * (attempt + 1))
+
+        if storage_error is not None:
+            session_storage = previous_session_storage
+            logging.warning(
+                "Shine navigated while its session storage was being saved; "
+                "preserving the previous storage state and saving current "
+                "cookies. If later updates report that you are signed out, "
+                "run --setup-shine-session again and wait for the page to "
+                "finish loading before pressing Enter."
+            )
+
+        self.session_state_path.parent.mkdir(parents=True, exist_ok=True)
+        state = {
+            "cookies": self.context.cookies([self.pages["profile"]]),
+            "session_storage": session_storage,
+        }
+        temporary_path = self.session_state_path.with_suffix(
+            self.session_state_path.suffix + ".tmp"
+        )
+        temporary_path.write_text(
+            json.dumps(state, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary_path.replace(self.session_state_path)
 
     def update_profile_resume(self, resume_path: str | Path) -> None:
         if self.page is None:
@@ -92,15 +337,47 @@ class CandidatePlatformBrowser:
         if not resume.is_file():
             raise FileNotFoundError(f"Resume file not found: {resume}")
 
-        self.page.goto(
-            PLATFORM_PAGES[self.platform]["profile"],
-            wait_until="domcontentloaded",
+        response = self.page.goto(
+            self.pages["profile"],
+            wait_until=(
+                "commit" if self.platform == "hirist" else "domcontentloaded"
+            ),
             timeout=60000,
         )
         self.page.wait_for_timeout(2000)
 
         current_url = self.page.url.lower()
         body = self.page.locator("body").inner_text().lower()
+        response_status = (
+            getattr(response, "status", None) if response is not None else None
+        )
+        page_title = self.page.title().strip()
+        hirist_not_found = (
+            self.platform == "hirist"
+            and "looks like you" in body
+            and "got lost" in body
+        )
+        if (
+            (response_status is not None and response_status >= 400)
+            or page_title.casefold() == "error page"
+            or re.search(r"\b404\s+not\s+found\b", body)
+            or hirist_not_found
+        ):
+            if hirist_not_found:
+                status_detail = "Hirist displayed its missing-page message"
+            elif response_status is not None:
+                status_detail = (
+                    f"HTTP {response_status}, page title {page_title!r}"
+                )
+            else:
+                status_detail = f"page title {page_title!r}"
+            raise RuntimeError(
+                f"{self.platform.title()} profile page is unavailable "
+                f"({status_detail}). Update "
+                f"{self.platform}_profile.profile_url in "
+                "config/job_preferences.yaml to the current resume/profile "
+                "page URL."
+            )
         if any(marker in current_url for marker in ("login", "/auth")):
             raise RuntimeError(
                 f"{self.platform.title()} is not signed in. Run "
@@ -119,6 +396,19 @@ class CandidatePlatformBrowser:
                 f"{self.platform.title()} requested a security check. "
                 "Complete it manually and retry."
             )
+        if self.platform == "shine" and (
+            "login with otp" in body
+            or "login via otp" in body
+            or "enter your email /phone number" in body
+        ):
+            raise RuntimeError(
+                "Shine is displaying its sign-in form. Run "
+                "`python main.py --setup-shine-session`, sign in, and retry."
+            )
+
+        if self.platform == "shine":
+            self._upload_shine_resume(resume)
+            return
 
         upload_control = self._resume_upload_control()
         if upload_control.count() == 0:
@@ -168,7 +458,62 @@ class CandidatePlatformBrowser:
                 "Check the profile manually before retrying."
             )
 
+    def _upload_shine_resume(self, resume: Path) -> None:
+        if resume.stat().st_size > 5 * 1024 * 1024:
+            raise ValueError(
+                "Shine accepts resume files up to 5 MB. Reduce the file "
+                "size and retry."
+            )
+
+        upload_control = self.page.locator("#myfile")
+        if upload_control.count() != 1:
+            raise RuntimeError(
+                "Could not find Shine's resume upload control (#myfile) on "
+                "the resume-upload page. No file was uploaded."
+            )
+
+        try:
+            with self.page.expect_response(
+                lambda response: (
+                    "/api/v2/candidate/" in response.url
+                    and "/resumefiles/" in response.url
+                ),
+                timeout=30000,
+            ) as response_info:
+                upload_control.set_input_files(str(resume))
+            response = response_info.value
+        except PlaywrightError as error:
+            raise RuntimeError(
+                "Shine did not return a response for the resume upload. "
+                "Check the profile manually before retrying."
+            ) from error
+
+        if not 200 <= response.status < 300:
+            raise RuntimeError(
+                "Shine rejected the resume upload with HTTP "
+                f"{response.status}. Check the file format and profile."
+            )
+
+        try:
+            result = response.json()
+        except PlaywrightError:
+            result = None
+        if isinstance(result, dict):
+            if result.get("success") is False:
+                detail = (
+                    result.get("message")
+                    or result.get("detail")
+                    or "the site reported an unsuccessful upload"
+                )
+                raise RuntimeError(f"Shine resume upload failed: {detail}")
+            errors = result.get("errors") or result.get("non_field_errors")
+            if errors:
+                raise RuntimeError(f"Shine resume upload failed: {errors}")
+        self._save_shine_session()
+
     def update_profile_fields(self, proposal: dict) -> list[str]:
+        if self.platform == "shine":
+            return self._update_shine_profile_fields(proposal)
         if self.platform != "foundit":
             raise RuntimeError(
                 f"Automatic profile-field updates are not implemented for "
@@ -182,7 +527,7 @@ class CandidatePlatformBrowser:
             raise ValueError("The profile proposal has no valid data object.")
 
         self.page.goto(
-            PLATFORM_PAGES[self.platform]["profile"],
+            self.pages["profile"],
             wait_until="domcontentloaded",
             timeout=60000,
         )
@@ -226,6 +571,346 @@ class CandidatePlatformBrowser:
                 + "; ".join(failures)
             )
         return changed
+
+    def _update_shine_profile_fields(self, proposal: dict) -> list[str]:
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+
+        data = proposal.get("data")
+        if not isinstance(data, dict):
+            raise ValueError("The profile proposal has no valid data object.")
+
+        sections = set(proposal.get("sections", []))
+        print(
+            "Shine's current editor does not support project or education "
+            "updates. Certifications were left unchanged because the form "
+            "requires validity details not extracted from the resume."
+        )
+
+        if self.page.url.rstrip("/") != self.pages["profile_edit"].rstrip("/"):
+            self.prepare_profile_update()
+
+        changed = []
+        if "summary" in sections and data.get("summary"):
+            if self._save_shine_summary(data["summary"]):
+                changed.append("summary")
+
+        if sections.intersection({"skills", "employment", "total_experience"}):
+            updated_profile_fields = self._save_shine_work_profile(
+                data.get("skills", [])
+                if "skills" in sections
+                else [],
+                data.get("employment", [])
+                if "employment" in sections
+                else [],
+                data.get("total_experience")
+                if "total_experience" in sections
+                else None,
+            )
+            changed.extend(updated_profile_fields)
+
+        return changed
+
+    def _save_shine_summary(self, summary: object) -> bool:
+        if not isinstance(summary, str) or not summary.strip():
+            return False
+
+        heading = self.page.get_by_role(
+            "heading",
+            name="Profile Summary",
+            exact=True,
+        )
+        if heading.count() != 1:
+            raise RuntimeError(
+                "Could not identify Shine's Profile Summary section."
+            )
+
+        section = heading.locator("xpath=..")
+        action = section.get_by_role(
+            "button",
+            name=re.compile(r"^(add|update|edit)$", re.IGNORECASE),
+        )
+        if action.count() != 1:
+            raise RuntimeError(
+                "Could not find Shine's Profile Summary editor."
+            )
+        action.click(timeout=10000)
+
+        summary_field = self.page.locator(
+            "textarea[placeholder='Type your profile summary here...']"
+        )
+        if summary_field.count() != 1:
+            raise RuntimeError(
+                "Shine did not open the Profile Summary text editor."
+            )
+        summary_field.fill(summary.strip())
+
+        save_button = self.page.get_by_role(
+            "button",
+            name="Save",
+            exact=True,
+        )
+        if save_button.count() != 1:
+            raise RuntimeError(
+                "Could not find Shine's Profile Summary Save button."
+            )
+        try:
+            with self.page.expect_response(
+                lambda result: (
+                    "/api/v4/candidate-summary/" in result.url
+                    and result.request.method.upper() == "PUT"
+                ),
+                timeout=30000,
+            ) as response_info:
+                save_button.click(timeout=10000)
+            response = response_info.value
+        except PlaywrightError as error:
+            raise RuntimeError(
+                "Shine did not confirm the Profile Summary update."
+            ) from error
+
+        if not 200 <= response.status < 300:
+            raise RuntimeError(
+                "Shine rejected the Profile Summary update with HTTP "
+                f"{response.status}."
+            )
+        return True
+
+    def _save_shine_work_profile(
+        self,
+        skills: object,
+        employment: object,
+        total_experience: object,
+    ) -> list[str]:
+        update_button = self.page.get_by_role(
+            "button",
+            name="Update",
+            exact=True,
+        )
+        if update_button.count() != 1:
+            raise RuntimeError(
+                "Could not find Shine's profile-details Update button."
+            )
+        update_button.click(timeout=10000)
+
+        skill_values = self._clean_shine_skills(skills)
+        existing_skill_items = self.page.locator(
+            "li[class*='selectedSkill']"
+        )
+        existing_skills = {
+            self._normalize_shine_skill(item.inner_text())
+            for item in existing_skill_items.all()
+        }
+        added_skills = []
+        if skill_values:
+            skill_label = self.page.locator("label[for='skill']")
+            if skill_label.count() != 1:
+                raise RuntimeError("Could not find Shine's skill editor.")
+            skill_input = skill_label.locator("xpath=..").locator("input")
+            if skill_input.count() != 1:
+                raise RuntimeError(
+                    "Could not identify Shine's skill search input."
+                )
+
+            remaining_slots = max(0, 25 - len(existing_skills))
+            skipped_for_limit = []
+            for skill in skill_values:
+                normalized = self._normalize_shine_skill(skill)
+                if normalized in existing_skills:
+                    continue
+                if not remaining_slots:
+                    skipped_for_limit.append(skill)
+                    continue
+                skill_input.fill(skill)
+                self.page.wait_for_timeout(600)
+                suggestion = self.page.get_by_text(
+                    re.compile(
+                        rf"^{re.escape(skill)}$",
+                        re.IGNORECASE,
+                    ),
+                    exact=True,
+                )
+                visible_suggestions = [
+                    candidate
+                    for candidate in suggestion.all()
+                    if candidate.is_visible()
+                ]
+                if not visible_suggestions:
+                    print(
+                        f"Shine did not offer '{skill}' as a selectable "
+                        "skill; it was skipped."
+                    )
+                    skill_input.fill("")
+                    continue
+                try:
+                    with self.page.expect_response(
+                        lambda response: (
+                            "/api/v2/candidate/" in response.url
+                            and "/skills/" in urlparse(response.url).path
+                            and response.request.method.upper() == "POST"
+                        ),
+                        timeout=30000,
+                    ) as response_info:
+                        visible_suggestions[-1].click(timeout=10000)
+                    response = response_info.value
+                except PlaywrightError as error:
+                    raise RuntimeError(
+                        f"Shine did not confirm adding the skill '{skill}'."
+                    ) from error
+                if not 200 <= response.status < 300:
+                    raise RuntimeError(
+                        f"Shine rejected the skill '{skill}' with HTTP "
+                        f"{response.status}."
+                    )
+                self.page.wait_for_timeout(300)
+                current_skills = {
+                    self._normalize_shine_skill(item.inner_text())
+                    for item in existing_skill_items.all()
+                }
+                if normalized not in current_skills:
+                    raise RuntimeError(
+                        f"Shine did not add the selected skill '{skill}'."
+                    )
+                existing_skills = current_skills
+                added_skills.append(skill)
+                remaining_slots -= 1
+                skill_input.fill("")
+            if skipped_for_limit:
+                print(
+                    "Shine's 25-skill limit was reached; skipped: "
+                    + ", ".join(skipped_for_limit)
+                )
+
+        current_role = self._shine_current_employment(employment)
+        changed_work_fields = []
+        for selector, key, label in (
+            ("#curr-comp", "company", "current company"),
+            ("#curr-designation", "title", "current designation"),
+        ):
+            value = current_role.get(key)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            field = self.page.locator(selector)
+            if field.count() != 1:
+                raise RuntimeError(
+                    f"Could not find Shine's {label} field."
+                )
+            if field.input_value().strip() != value.strip():
+                field.fill(value.strip())
+                changed_work_fields.append(label)
+
+        total_experience_value = self._shine_total_experience_value(
+            total_experience
+        )
+        if total_experience_value:
+            field = self.page.locator("#total_experience")
+            if field.count() != 1:
+                raise RuntimeError(
+                    "Could not find Shine's total-experience field."
+                )
+            if field.input_value().strip().casefold() != (
+                total_experience_value.casefold()
+            ):
+                field.fill(total_experience_value)
+                changed_work_fields.append("total experience")
+        elif isinstance(total_experience, str) and total_experience.strip():
+            print(
+                "Shine total experience was left unchanged because the "
+                "resume value was not in a supported years-only format."
+            )
+
+        if not added_skills and not changed_work_fields:
+            return []
+
+        if changed_work_fields:
+            submit = self.page.get_by_role(
+                "button",
+                name="Submit",
+                exact=True,
+            )
+            if submit.count() != 1:
+                raise RuntimeError(
+                    "Could not find Shine's profile-details Submit button."
+                )
+            try:
+                with self.page.expect_response(
+                    lambda response: (
+                        "/api/v4/candidate-work-profile/"
+                        in urlparse(response.url).path
+                        and response.request.method.upper()
+                        in {"POST", "PUT", "PATCH"}
+                    ),
+                    timeout=30000,
+                ) as response_info:
+                    submit.click(timeout=10000)
+                response = response_info.value
+            except PlaywrightError as error:
+                raise RuntimeError(
+                    "Shine did not confirm the profile details update."
+                ) from error
+            if not 200 <= response.status < 300:
+                raise RuntimeError(
+                    "Shine rejected the profile details update with HTTP "
+                    f"{response.status}."
+                )
+
+        updated = []
+        if added_skills:
+            updated.append(f"skills ({len(added_skills)} added)")
+        updated.extend(changed_work_fields)
+        return updated
+
+    @staticmethod
+    def _clean_shine_skills(skills: object) -> list[str]:
+        if not isinstance(skills, list):
+            raise ValueError("Proposed skills must be a list.")
+        values = []
+        seen = set()
+        for skill in skills:
+            if not isinstance(skill, str) or not skill.strip():
+                continue
+            normalized = CandidatePlatformBrowser._normalize_shine_skill(
+                skill
+            )
+            if normalized not in seen:
+                values.append(skill.strip())
+                seen.add(normalized)
+        return values
+
+    @staticmethod
+    def _normalize_shine_skill(skill: str) -> str:
+        normalized = re.sub(r"\s+", " ", skill).strip()
+        normalized = re.sub(r"\s*×\s*$", "", normalized)
+        return normalized.casefold()
+
+    @staticmethod
+    def _shine_current_employment(employment: object) -> dict:
+        if not isinstance(employment, list):
+            raise ValueError("Proposed employment must be a list.")
+        current_roles = [
+            item
+            for item in employment
+            if isinstance(item, dict) and item.get("is_current") is True
+        ]
+        if len(current_roles) > 1:
+            raise ValueError(
+                "The resume proposal contains multiple current roles; "
+                "Shine's current-work fields were left unchanged."
+            )
+        return current_roles[0] if current_roles else {}
+
+    @staticmethod
+    def _shine_total_experience_value(value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        match = re.fullmatch(
+            r"\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s*",
+            value,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        return f"{match.group(1)} Yrs"
 
     def _update_foundit_skills(self, skills: object) -> bool:
         if not isinstance(skills, list):
@@ -600,13 +1285,20 @@ class CandidatePlatformBrowser:
         return file_controls.first
 
     def close(self) -> None:
-        if self.context is not None:
-            self.context.close()
-            self.context = None
-        if self.playwright is not None and self._owns_playwright:
-            self.playwright.stop()
-        self.playwright = None
-        self._owns_playwright = False
+        context = self.context
+        playwright = self.playwright
+        owns_playwright = self._owns_playwright
+        try:
+            if context is not None:
+                context.close()
+        finally:
+            try:
+                if playwright is not None and owns_playwright:
+                    playwright.stop()
+            finally:
+                self.context = None
+                self.playwright = None
+                self._owns_playwright = False
 
 
 class PlatformResumeUploader:

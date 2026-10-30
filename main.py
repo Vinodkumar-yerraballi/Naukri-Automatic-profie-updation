@@ -60,7 +60,10 @@ def update_candidate_platform(
     playwright=None,
 ) -> list[str]:
     """Update one platform's resume and configured resume-supported fields."""
-    browser = CandidatePlatformBrowser(platform)
+    browser = CandidatePlatformBrowser(
+        platform,
+        platform_config=platform_config,
+    )
     failures = []
     try:
         browser.start_persistent(
@@ -128,6 +131,14 @@ def update_candidate_platform(
                             "Resume tailoring is required to extract profile "
                             "fields from the source resume."
                         )
+                    if platform == "shine":
+                        print(
+                            "Preparing Shine's profile editor and extracting "
+                            "resume-supported fields with "
+                            f"{resume_tailoring.provider}. Keep this window "
+                            "open while the update is running."
+                        )
+                        browser.prepare_profile_update()
                     proposal_builder = ResumeProfileProposal(
                         resume_tailoring
                     )
@@ -956,30 +967,37 @@ if __name__ == "__main__":
         action="store_true",
         help="Sign in manually and save a local Naukri browser session.",
     )
-    actions.add_argument(
-        "--setup-foundit-session",
-        action="store_true",
-        help="Sign in manually and save a local Foundit browser session.",
+    resume_platforms = (
+        "foundit",
+        "indeed",
+        "shine",
+        "hirist",
+        "wellfound",
     )
-    actions.add_argument(
-        "--setup-indeed-session",
-        action="store_true",
-        help="Sign in manually and save a local Indeed browser session.",
-    )
-    actions.add_argument(
-        "--update-foundit-profile",
-        action="store_true",
-        help=(
-            "Update Foundit resume, skills, experience, and projects without "
-            "running the Naukri job search."
-        ),
-    )
+    for platform in resume_platforms:
+        actions.add_argument(
+            f"--setup-{platform}-session",
+            action="store_true",
+            help=(
+                f"Sign in manually and save a local {platform.title()} "
+                "browser session."
+            ),
+        )
+    for platform in resume_platforms:
+        actions.add_argument(
+            f"--update-{platform}-profile",
+            action="store_true",
+            help=(
+                f"Upload a changed {platform.title()} resume without "
+                "running the Naukri job search."
+            ),
+        )
     actions.add_argument(
         "--update-all-profiles",
         action="store_true",
         help=(
-            "Update configured Naukri and Foundit profiles once without "
-            "running the job search."
+            "Update all enabled resume platforms once without running "
+            "the job search."
         ),
     )
     actions.add_argument(
@@ -1020,16 +1038,23 @@ if __name__ == "__main__":
             print("Local Naukri browser session is ready.")
         finally:
             browser.close()
-    elif arguments.setup_foundit_session or arguments.setup_indeed_session:
-        platform = (
-            "foundit"
-            if arguments.setup_foundit_session
-            else "indeed"
+    elif any(
+        getattr(arguments, f"setup_{platform}_session")
+        for platform in resume_platforms
+    ):
+        platform = next(
+            platform
+            for platform in resume_platforms
+            if getattr(arguments, f"setup_{platform}_session")
         )
         platform_config = ConfigManager().get_resume_platform_configs()[
             platform
         ]
-        browser = CandidatePlatformBrowser(platform, headless=False)
+        browser = CandidatePlatformBrowser(
+            platform,
+            headless=False,
+            platform_config=platform_config,
+        )
         try:
             browser.start_persistent(
                 platform_config.get(
@@ -1043,7 +1068,11 @@ if __name__ == "__main__":
                 "After you reach your account, press Enter here to save "
                 "the session: "
             )
-            print(f"Local {platform.title()} browser session is ready.")
+            if platform == "shine":
+                browser.verify_shine_session()
+                print("Shine sign-in verified; the local session is ready.")
+            else:
+                print(f"Local {platform.title()} browser session is ready.")
         finally:
             browser.close()
     elif arguments.update_all_profiles:
@@ -1077,44 +1106,65 @@ if __name__ == "__main__":
         finally:
             browser.close()
 
-        foundit_config = config_manager.get_resume_platform_configs()[
-            "foundit"
-        ]
-        foundit_resume = foundit_config.get(
-            "resume_path",
-            "data/resume.pdf",
-        )
-        foundit_tailoring_config = dict(tailoring_config)
-        foundit_tailoring_config["resume_path"] = foundit_resume
-        foundit_tailoring = ResumeTailoringService.from_config(
-            foundit_tailoring_config
-        )
-        failures.extend(
-            update_candidate_platform(
-                "foundit",
-                foundit_config,
-                foundit_resume,
-                foundit_tailoring,
+        for platform, platform_config in (
+            config_manager.get_resume_platform_configs().items()
+        ):
+            if not (
+                platform_config.get("update_resume", False)
+                or platform_config.get("update_profile_fields", False)
+            ):
+                continue
+            platform_resume = platform_config.get(
+                "resume_path",
+                "data/resume.pdf",
             )
-        )
+            platform_tailoring = None
+            if platform_config.get("update_profile_fields", False):
+                platform_tailoring_config = dict(tailoring_config)
+                platform_tailoring_config["resume_path"] = platform_resume
+                platform_tailoring = ResumeTailoringService.from_config(
+                    platform_tailoring_config
+                )
+            failures.extend(
+                update_candidate_platform(
+                    platform,
+                    platform_config,
+                    platform_resume,
+                    platform_tailoring,
+                )
+            )
         if failures:
             raise RuntimeError("; ".join(failures))
-    elif arguments.update_foundit_profile:
+    elif any(
+        getattr(arguments, f"update_{platform}_profile")
+        for platform in resume_platforms
+    ):
+        platform = next(
+            platform
+            for platform in resume_platforms
+            if getattr(arguments, f"update_{platform}_profile")
+        )
         config_manager = ConfigManager()
         platform_config = config_manager.get_resume_platform_configs()[
-            "foundit"
+            platform
         ]
         resume_path = platform_config.get("resume_path", "data/resume.pdf")
-        resume_config = config_manager.get_resume_tailoring_config()
-        resume_config["resume_path"] = resume_path
-        resume_tailoring = ResumeTailoringService.from_config(resume_config)
-        if not resume_tailoring:
-            raise RuntimeError(
-                "Resume tailoring must be enabled to extract Foundit "
-                "profile fields."
+        resume_tailoring = None
+        if platform_config.get("update_profile_fields", False):
+            resume_config = dict(
+                config_manager.get_resume_tailoring_config()
             )
+            resume_config["resume_path"] = resume_path
+            resume_tailoring = ResumeTailoringService.from_config(
+                resume_config
+            )
+            if not resume_tailoring:
+                raise RuntimeError(
+                    "Resume tailoring must be enabled to extract "
+                    f"{platform.title()} profile fields."
+                )
         failures = update_candidate_platform(
-            "foundit",
+            platform,
             platform_config,
             resume_path,
             resume_tailoring,

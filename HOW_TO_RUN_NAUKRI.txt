@@ -3,7 +3,7 @@ NAUKRI RESUME AND PROFILE GUIDE
 
 From the project directory in PowerShell:
 
-   venv\Scripts\python.exe main.py --setup-naukri-session
+   .venv\Scripts\python.exe main.py --setup-naukri-session
 
 Sign in yourself in the browser and press Enter in PowerShell. The saved
 session is in data\naukri_browser_profile; keep that directory private.
@@ -12,7 +12,7 @@ Replace data\resume.pdf with your updated text-based PDF. To upload the
 changed resume and update resume-supported profile fields without starting the
 job search, run:
 
-   venv\Scripts\python.exe main.py --update-naukri-profile
+   .venv\Scripts\python.exe main.py --update-naukri-profile
 
 The command uploads a changed resume, updates the resume headline and
 resume-supported key skills, and adds projects that are not already on your
@@ -26,12 +26,12 @@ The normal command `python main.py` also attempts the configured Naukri
 resume/profile update, then continues with the Naukri job search. The daily
 job-search scheduler command is:
 
-   venv\Scripts\python.exe main.py --schedule
+   .venv\Scripts\python.exe main.py --schedule
 
-To update both Naukri and Foundit profiles once without starting the job
-search, run:
+To update Naukri and every other enabled platform once without starting the
+job search, run:
 
-   venv\Scripts\python.exe main.py --update-all-profiles
+   .venv\Scripts\python.exe main.py --update-all-profiles
 
 The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
 that profile-only command daily at 09:00 Asia/Kolkata. Keep your Windows

@@ -1,14 +1,31 @@
-WELLFOUND RESUME GUIDE
-======================
+WELLFOUND RESUME UPDATE GUIDE
+=============================
 
-Wellfound resume updates are not automated by this project. The resume flow
-may be part of a specific job application rather than a general profile
-resume field.
+Run these commands from the project folder in PowerShell. The examples use
+the project's .venv virtual environment.
 
-Sign in to Wellfound yourself, review your candidate profile, and upload or
-attach the current data\resume.pdf where the site offers that option. Confirm
-that the intended resume is selected before submitting an application.
+1. Sign in once and save the local Wellfound session:
 
-The project does not automate Wellfound login, profile changes, or job
-applications. Keep profile details accurate and do not rely on any tool to
-guarantee interviews or shortlisting.
+   .venv\Scripts\python.exe main.py --setup-wellfound-session
+
+   Sign in yourself in the browser, complete any checks, then press Enter in
+   PowerShell. The session is stored separately in
+   data\wellfound_browser_profile. Keep that folder private.
+
+2. Replace data\resume.pdf with your updated, text-based resume.
+
+3. Update Wellfound only:
+
+   .venv\Scripts\python.exe main.py --update-wellfound-profile
+
+The command attempts to upload the resume when its contents differ from the
+last confirmed upload. The upload state is stored in
+data\wellfound_resume_upload.json. The configured login/profile URLs are in
+config\job_preferences.yaml and can be adjusted if Wellfound changes its
+pages or account flow.
+
+This updater uploads the resume only; it does not edit Wellfound profile
+fields or apply to jobs. Some Wellfound applications may ask you to select a
+resume separately. The site must confirm a profile upload before it is
+recorded. Complete sign-in and security checks yourself, and verify the
+resume on Wellfound after each update.
