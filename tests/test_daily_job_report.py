@@ -76,7 +76,8 @@ def test_access_denied_report_is_recorded_and_fails(tmp_path, monkeypatch):
         def __init__(self, headless):
             pass
 
-        def start(self):
+        def start_persistent(self, user_data_dir):
+            # Match the persistent-session API used by run_report().
             pass
 
         def search_jobs(self, **kwargs):
