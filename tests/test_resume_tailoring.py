@@ -366,6 +366,91 @@ def test_gemini_json_completion_requests_json_mime_type(tmp_path, monkeypatch):
     )
 
 
+def test_groq_json_completion_uses_chat_completions_api(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        api_key="test-groq-key",
+        provider="groq",
+        model="openai/gpt-oss-120b",
+    )
+    calls = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": '{"skills": ["SQL"]}'}}]}
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls["url"] = request.full_url
+        calls["authorization"] = request.get_header("Authorization")
+        calls["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(resume_tailoring, "urlopen", fake_urlopen)
+
+    result = service.complete_prompt(
+        "Extract resume facts",
+        response_format="json",
+    )
+
+    assert result == '{"skills": ["SQL"]}'
+    assert calls["url"] == ResumeTailoringService.GROQ_API_URL
+    assert calls["authorization"] == "Bearer test-groq-key"
+    assert calls["payload"]["model"] == "openai/gpt-oss-120b"
+    assert calls["payload"]["response_format"] == {"type": "json_object"}
+
+
+def test_groq_provider_loads_key_from_local_dotenv(tmp_path, monkeypatch):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    (tmp_path / ".env").write_text(
+        "GROQ_API_KEY=test-groq-key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    service = ResumeTailoringService.from_config(
+        {
+            "enabled": True,
+            "provider": "groq",
+            "resume_path": str(resume_path),
+        }
+    )
+
+    assert service is not None
+    assert service.provider == "groq"
+    assert service.api_key == "test-groq-key"
+    assert service.model == "openai/gpt-oss-120b"
+
+
+def test_groq_provider_requires_api_key(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="GROQ_API_KEY"):
+        ResumeTailoringService.from_config(
+            {
+                "enabled": True,
+                "provider": "groq",
+                "resume_path": str(tmp_path / "missing-resume.txt"),
+            }
+        )
+
+
 def test_gemini_retries_temporary_server_failure(tmp_path, monkeypatch):
     resume_path = tmp_path / "resume.txt"
     resume_path.write_text("Python and SQL", encoding="utf-8")

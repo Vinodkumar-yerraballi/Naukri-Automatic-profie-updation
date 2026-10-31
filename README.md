@@ -151,24 +151,24 @@ locations focused on jobs you would genuinely consider.
 
 ### 5. Configure resume-tailoring AI
 
-The default configuration uses Gemini first and Ollama as a local fallback.
-To use it, put your key in the project root `.env` file:
+The default configuration uses Groq with Ollama as a local fallback. Put your
+key in the project root `.env` file:
 
 ```text
-GEMINI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
 ```
 
-The configured Gemini model is `gemini-3.8-flash`; override it with
-`GEMINI_MODEL` if needed. Keep API keys out of source files, command history,
+The configured Groq model is `openai/gpt-oss-120b`; override it with
+`GROQ_MODEL` if needed. Keep API keys out of source files, command history,
 and chat messages.
 
-**Gemini with local Ollama fallback**
+**Groq with local Ollama fallback**
 
-1. Create an API key using [Google AI Studio](https://aistudio.google.com/apikey).
+1. Create an API key using [GroqCloud](https://console.groq.com/keys).
 2. Create a `.env` file in the project root containing:
 
    ```text
-   GEMINI_API_KEY=your_key_here
+   GROQ_API_KEY=your_key_here
    ```
 
 3. Install [Ollama](https://ollama.com/download), then download the configured
@@ -183,9 +183,9 @@ and chat messages.
    Set `OLLAMA_FALLBACK_MODEL` in `.env` to override the fallback model.
 
 Resume text and job descriptions are sent to the selected cloud AI when using
-Gemini or Anthropic. Review the provider's current privacy, data-use, pricing,
-and model-availability terms before sending personal information. Ollama
-processes requests locally on your computer.
+Groq, Gemini, or Anthropic. Review the provider's current privacy, data-use,
+pricing, and model-availability terms before sending personal information.
+Ollama processes requests locally on your computer.
 
 **Ollama only**
 
@@ -193,9 +193,9 @@ Set `provider: ollama` and `model: qwen3:8b` under `resume_tailoring` in
 `config\job_preferences.yaml`. Remove or comment out the
 `fallback_provider` setting if you do not want a second provider.
 
-To switch to Anthropic instead, set `provider: anthropic` and the desired
-Claude model in `config\job_preferences.yaml`, then set `ANTHROPIC_API_KEY`
-in `.env`.
+To switch to Gemini or Anthropic, set `provider` and `model` in
+`config\job_preferences.yaml`, then set `GEMINI_API_KEY` or
+`ANTHROPIC_API_KEY` in `.env`.
 
 ### 6. Sign in locally (recommended for resume upload)
 
@@ -308,8 +308,8 @@ profile fields.
   provider. Indeed currently supports resume upload only.
 - Naukri can update the resume headline and key skills and add missing
   resume-supported projects. Existing projects are preserved. Profile fields
-  are processed once per source-resume version using the configured AI
-  provider. Use `--update-naukri-profile` to run this without the job search.
+  are processed from resume-supported information. Use
+  `--update-naukri-profile` to run this without the job search.
 - Indeed, Hirist, and Wellfound currently support resume upload only; they do
   not automatically edit profile fields or submit applications. Shine also
   updates its summary, skills, explicitly stated total experience, and current
@@ -317,9 +317,15 @@ profile fields.
   supported project or education editors, and its certification form requires
   validity details not extracted from the resume, so those sections are left
   unchanged.
-- The Anthropic provider uses `ANTHROPIC_API_KEY` from `.env` to create
-  job-specific DOCX drafts. Drafts are saved locally for review; the source
-  resume is not overwritten, and drafts are not uploaded automatically.
+- Jobs scoring at or above `matching.minimum_score` (75 by default) receive
+  separate job-specific DOCX drafts. When
+  `resume_tailoring.upload_best_draft_to_profiles` is enabled, the highest
+  scoring draft from the run is uploaded to each enabled resume platform.
+  The source resume is not overwritten. Indeed and Hirist currently support
+  resume upload only; profile-field editors are available only on Naukri,
+  Foundit, and Shine for their supported fields.
+- Use `--update-all-profiles` to force a fresh reconciliation of supported
+  profile fields from the source resume, including Naukri, Foundit, and Shine.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.
@@ -340,7 +346,8 @@ profile fields.
   automatically attached; Naukri uses the resume already on your profile.
   The configured daily limit counts confirmed and uncertain attempts.
 - `matching.minimum_score` is this project's job-relevance score, not a
-  universal ATS score. No ATS percentage (including 90%) can be guaranteed.
+  universal ATS score. Tailoring does not guarantee or artificially raise a
+  score to 90%; it only rephrases and prioritizes facts present in the source.
 - Where a job description is available and the job meets the configured
   criteria, a job-specific resume draft can be saved as a DOCX under
   `data\processed\resumes`.

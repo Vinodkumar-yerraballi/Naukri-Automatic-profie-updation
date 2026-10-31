@@ -58,6 +58,7 @@ def update_candidate_platform(
     resume_path: str,
     resume_tailoring,
     playwright=None,
+    reconcile_profile_fields: bool = False,
 ) -> list[str]:
     """Update one platform's resume and configured resume-supported fields."""
     browser = CandidatePlatformBrowser(
@@ -121,10 +122,12 @@ def update_candidate_platform(
                         f"data/{platform}_profile_update.json",
                     ),
                 )
-                reconcile_foundit = platform == "foundit"
+                reconcile_platform_fields = (
+                    platform == "foundit" or reconcile_profile_fields
+                )
                 if (
                     not profile_updater.is_current(platform_resume)
-                    or reconcile_foundit
+                    or reconcile_platform_fields
                 ):
                     if not resume_tailoring:
                         raise RuntimeError(
@@ -153,7 +156,7 @@ def update_candidate_platform(
                         browser,
                         platform_resume,
                         proposal,
-                        force=reconcile_foundit,
+                        force=reconcile_platform_fields,
                     )
                     if updated_fields:
                         print(
@@ -266,6 +269,80 @@ def update_naukri_candidate_profile(
     return failures
 
 
+def upload_resume_to_enabled_profiles(
+    resume_path: str,
+    naukri_config: dict,
+    platform_configs: dict,
+    naukri_browser: NaukriBrowser,
+    playwright=None,
+) -> list[str]:
+    """Upload one selected tailored resume to each enabled platform."""
+    failures = []
+    if naukri_config.get("update_resume", False):
+        try:
+            uploader = NaukriResumeUploader(
+                naukri_config.get(
+                    "upload_state_file",
+                    "data/profile_resume_upload.json",
+                )
+            )
+            if uploader.update_if_changed(naukri_browser, resume_path):
+                print(f"Naukri profile resume updated from: {resume_path}")
+        except (
+            OSError,
+            PlaywrightError,
+            RuntimeError,
+            ValueError,
+        ) as error:
+            failures.append(
+                "Naukri tailored-resume upload failed: "
+                f"{type(error).__name__}: {error}"
+            )
+
+    for platform, platform_config in platform_configs.items():
+        if not platform_config.get("update_resume", False):
+            continue
+
+        browser = CandidatePlatformBrowser(
+            platform,
+            platform_config=platform_config,
+        )
+        try:
+            browser.start_persistent(
+                platform_config.get(
+                    "browser_profile_directory",
+                    f"data/{platform}_browser_profile",
+                ),
+                playwright=playwright,
+            )
+            uploader = PlatformResumeUploader(
+                platform,
+                platform_config.get(
+                    "upload_state_file",
+                    f"data/{platform}_resume_upload.json",
+                ),
+            )
+            if uploader.update_if_changed(browser, resume_path):
+                print(
+                    f"{platform.title()} profile resume updated from: "
+                    f"{resume_path}"
+                )
+        except (
+            OSError,
+            PlaywrightError,
+            RuntimeError,
+            ValueError,
+        ) as error:
+            failures.append(
+                f"{platform.title()} tailored-resume upload failed: "
+                f"{type(error).__name__}: {error}"
+            )
+        finally:
+            browser.close()
+
+    return failures
+
+
 def main(run_review=True):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
@@ -282,6 +359,10 @@ def main(run_review=True):
         "resume_path",
         resume_config.get("resume_path", "data/resume.pdf"),
     )
+    upload_best_draft = resume_config.get(
+        "upload_best_draft_to_profiles",
+        False,
+    )
 
     browser = NaukriBrowser(
         headless=False
@@ -292,10 +373,17 @@ def main(run_review=True):
         resume_tailoring = ResumeTailoringService.from_config(resume_config)
 
         if resume_tailoring:
-            print(
-                "Resume tailoring is enabled. Drafts will be saved locally "
-                "for manual review."
-            )
+            if upload_best_draft:
+                print(
+                    "Resume tailoring is enabled. Drafts will be saved "
+                    "locally; the highest-scoring draft at or above the "
+                    "match threshold will be uploaded to enabled profiles."
+                )
+            else:
+                print(
+                    "Resume tailoring is enabled. Drafts will be saved "
+                    "locally for manual review."
+                )
 
         # ==================================================
         # 1. Start browser
@@ -308,9 +396,12 @@ def main(run_review=True):
                     "data/naukri_browser_profile",
                 )
             )
+            initial_naukri_config = dict(profile_config)
+            if upload_best_draft:
+                initial_naukri_config["update_resume"] = False
             for failure in update_naukri_candidate_profile(
                 browser,
-                profile_config,
+                initial_naukri_config,
                 source_resume,
                 resume_tailoring,
             ):
@@ -326,9 +417,12 @@ def main(run_review=True):
                 or platform_config.get("update_profile_fields", False)
             ):
                 continue
+            initial_platform_config = dict(platform_config)
+            if upload_best_draft:
+                initial_platform_config["update_resume"] = False
             failures = update_candidate_platform(
                 platform,
-                platform_config,
+                initial_platform_config,
                 source_resume,
                 resume_tailoring,
                 playwright=browser.playwright,
@@ -550,6 +644,8 @@ def main(run_review=True):
         # ==================================================
 
         resume_drafts = {}
+        best_resume_draft = None
+        best_resume_score = None
 
         for index, job in enumerate(
             jobs_to_process,
@@ -733,6 +829,15 @@ def main(run_review=True):
                 else:
                     print(f"\nTailored resume draft saved: {draft_path}")
                     resume_drafts[processed_job["job_url"]] = str(draft_path)
+                    match_score = float(
+                        processed_job.get("match_score", 0) or 0
+                    )
+                    if (
+                        best_resume_score is None
+                        or match_score > best_resume_score
+                    ):
+                        best_resume_draft = draft_path
+                        best_resume_score = match_score
 
             # ==================================================
             # 16. Display evaluation
@@ -851,6 +956,28 @@ def main(run_review=True):
         # ==================================================
         # 17. Review pending jobs
         # ==================================================
+
+        if upload_best_draft:
+            resume_to_upload = best_resume_draft or source_resume
+            if best_resume_draft:
+                print(
+                    "\nUploading the highest-scoring tailored resume "
+                    f"(match score: {best_resume_score}) to enabled profiles. "
+                    "The source resume file will not be changed."
+                )
+            else:
+                print(
+                    "\nNo qualifying tailored resume was created. Syncing "
+                    "the source resume to enabled profiles instead."
+                )
+            for failure in upload_resume_to_enabled_profiles(
+                str(resume_to_upload),
+                profile_config,
+                config_manager.get_resume_platform_configs(),
+                browser,
+                playwright=browser.playwright,
+            ):
+                print(f"\n{failure}")
 
         print(
             "\n========== STARTING REVIEW QUEUE =========="
@@ -1131,6 +1258,7 @@ if __name__ == "__main__":
                     platform_config,
                     platform_resume,
                     platform_tailoring,
+                    reconcile_profile_fields=True,
                 )
             )
         if failures:

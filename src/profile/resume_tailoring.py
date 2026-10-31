@@ -18,6 +18,7 @@ class ResumeTailoringService:
     """Create factual, job-specific resume drafts using a configured AI."""
 
     ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
     API_VERSION = "2023-06-01"
     REQUEST_TIMEOUT_SECONDS = 60
     MAX_REQUEST_ATTEMPTS = 2
@@ -35,11 +36,12 @@ class ResumeTailoringService:
         fallback_base_url: str = "http://localhost:11434",
     ):
         self.provider = provider.lower()
-        if self.provider not in {"anthropic", "ollama", "gemini"}:
+        if self.provider not in {"anthropic", "ollama", "gemini", "groq"}:
             raise ValueError(
-                "Resume provider must be 'anthropic', 'gemini', or 'ollama'."
+                "Resume provider must be 'anthropic', 'gemini', 'groq', "
+                "or 'ollama'."
             )
-        if self.provider in {"anthropic", "gemini"} and not api_key:
+        if self.provider in {"anthropic", "gemini", "groq"} and not api_key:
             raise ValueError(f"An {self.provider.title()} API key is required.")
         self.resume_path = Path(resume_path)
         self.output_directory = Path(output_directory)
@@ -78,11 +80,30 @@ class ResumeTailoringService:
                 raise RuntimeError(
                     "Gemini is selected, but GEMINI_API_KEY is not set."
                 )
+        elif provider == "groq":
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                raise RuntimeError(
+                    "Groq is selected, but GROQ_API_KEY is not set."
+                )
         elif provider != "ollama":
             raise ValueError(
-                "Resume provider must be 'anthropic', 'gemini', or 'ollama'."
+                "Resume provider must be 'anthropic', 'gemini', 'groq', "
+                "or 'ollama'."
             )
 
+        model_environment_names = {
+            "anthropic": "ANTHROPIC_MODEL",
+            "gemini": "GEMINI_MODEL",
+            "groq": "GROQ_MODEL",
+            "ollama": "OLLAMA_MODEL",
+        }
+        default_models = {
+            "anthropic": "claude-sonnet-4-5",
+            "gemini": "gemini-3.8-flash",
+            "groq": "openai/gpt-oss-120b",
+            "ollama": "qwen3:8b",
+        }
         return cls(
             resume_path=config.get("resume_path", "data/resume.pdf"),
             output_directory=config.get(
@@ -90,19 +111,8 @@ class ResumeTailoringService:
             ),
             api_key=api_key,
             model=os.environ.get(
-                {
-                    "anthropic": "ANTHROPIC_MODEL",
-                    "gemini": "GEMINI_MODEL",
-                    "ollama": "OLLAMA_MODEL",
-                }[provider],
-                config.get(
-                    "model",
-                    "claude-sonnet-4-5"
-                    if provider == "anthropic"
-                    else "gemini-3.8-flash"
-                    if provider == "gemini"
-                    else "qwen3:8b",
-                ),
+                model_environment_names[provider],
+                config.get("model", default_models[provider]),
             ),
             provider=provider,
             base_url=os.environ.get(
@@ -238,6 +248,29 @@ class ResumeTailoringService:
                 ),
                 "messages": [{"role": "user", "content": prompt}],
             }
+        elif self.provider == "groq":
+            url = self.GROQ_API_URL
+            headers = {
+                "authorization": f"Bearer {self.api_key or ''}",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": self.model,
+                "max_tokens": 4096,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You edit resumes faithfully. Never add or infer "
+                            "candidate facts that are not in the source resume."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+            }
+            if response_format == "json":
+                payload["response_format"] = {"type": "json_object"}
         else:
             url = (
                 "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -342,6 +375,21 @@ class ResumeTailoringService:
 
         if self.provider == "ollama":
             message = result.get("message")
+            text = (
+                message.get("content", "")
+                if isinstance(message, dict)
+                else ""
+            )
+        elif self.provider == "groq":
+            choices = result.get("choices")
+            first_choice = (
+                choices[0]
+                if isinstance(choices, list)
+                and choices
+                and isinstance(choices[0], dict)
+                else {}
+            )
+            message = first_choice.get("message")
             text = (
                 message.get("content", "")
                 if isinstance(message, dict)

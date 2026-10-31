@@ -43,7 +43,7 @@ class ResumeProfileProposal:
             prompt,
             response_format="json",
         )
-        data = self._parse_response(raw_response)
+        data = self._parse_response(raw_response, requested)
         return {
             "created_at": datetime.now().astimezone().isoformat(),
             "source_resume": str(self.ai_service.resume_path),
@@ -116,6 +116,9 @@ class ResumeProfileProposal:
             "matching value shapes:\n"
             f"{json.dumps(schema, ensure_ascii=True)}\n"
             f"Prepare only these sections: {json.dumps(sorted(sections))}.\n"
+            "Return every top-level key shown in the schema. For sections not "
+            "being prepared, use null for scalar fields and empty lists for "
+            "list fields.\n"
             "Rules: include only facts explicitly stated in the resume; do "
             "not invent or infer employers, titles, dates, skills, degrees, "
             "certifications, metrics, or responsibilities. Use null or an "
@@ -131,7 +134,10 @@ class ResumeProfileProposal:
         )
 
     @staticmethod
-    def _parse_response(response: str) -> dict:
+    def _parse_response(
+        response: str,
+        requested_sections: set[str] | None = None,
+    ) -> dict:
         cleaned = response.strip()
         if cleaned.startswith("```"):
             cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
@@ -147,9 +153,29 @@ class ResumeProfileProposal:
             raise ValueError("The profile proposal must be a JSON object.")
 
         expected_keys = set(PROFILE_SECTIONS)
-        if set(data) != expected_keys:
+        unexpected_keys = set(data).difference(expected_keys)
+        if unexpected_keys:
             raise ValueError(
                 "The AI profile proposal has an unexpected field set."
+            )
+
+        requested = (
+            expected_keys
+            if requested_sections is None
+            else requested_sections
+        )
+        missing_requested = requested.difference(data)
+        if missing_requested:
+            raise ValueError(
+                "The AI profile proposal omitted requested sections: "
+                f"{', '.join(sorted(missing_requested))}."
+            )
+
+        for key in expected_keys.difference(data):
+            data[key] = (
+                None
+                if key in {"headline", "summary", "total_experience"}
+                else []
             )
 
         for key in ("headline", "summary", "total_experience"):

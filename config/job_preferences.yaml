@@ -58,15 +58,17 @@ resume_tailoring:
 
   enabled: true
 
-  provider: gemini
+  provider: groq
 
-  model: gemini-3.8-flash
+  model: openai/gpt-oss-120b
 
   fallback_provider: ollama
 
   fallback_model: qwen3:1.7b
 
   fallback_base_url: http://localhost:11434
+
+  upload_best_draft_to_profiles: true
 
   resume_path: C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
 

@@ -89,6 +89,33 @@ def test_parse_response_rejects_unexpected_fields():
         ResumeProfileProposal._parse_response(json.dumps(data))
 
 
+def test_create_accepts_omitted_unrequested_sections():
+    data = {
+        "headline": "Data Analyst skilled in Python and SQL",
+        "skills": ["Python", "SQL"],
+        "projects": [],
+    }
+    proposal_builder = ResumeProfileProposal(
+        FakeAIService(json.dumps(data))
+    )
+
+    proposal = proposal_builder.create(["headline", "skills", "projects"])
+
+    assert proposal["data"]["summary"] is None
+    assert proposal["data"]["employment"] == []
+    assert proposal["data"]["education"] == []
+    assert proposal["data"]["certifications"] == []
+
+
+def test_create_rejects_omitted_requested_section():
+    proposal_builder = ResumeProfileProposal(
+        FakeAIService(json.dumps({"headline": "Data Analyst"}))
+    )
+
+    with pytest.raises(ValueError, match="omitted requested sections: skills"):
+        proposal_builder.create(["headline", "skills"])
+
+
 def test_parse_response_accepts_json_code_fence():
     proposal = ResumeProfileProposal._parse_response(
         "```json\n" + json.dumps(valid_profile()) + "\n```"
