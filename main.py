@@ -521,10 +521,14 @@ def main(run_review=True):
             print("No jobs found.")
 
         # ==================================================
-        # 4. Select first 20 jobs
+        # 4. Apply the configured per-run job limit
         # ==================================================
 
-        jobs_to_process = jobs[:20]
+        max_jobs_per_run = max(
+            1,
+            int(search_config.get("max_jobs_per_run", 20)),
+        )
+        jobs_to_process = jobs[:max_jobs_per_run]
 
         print(
             f"\nProcessing {len(jobs_to_process)} jobs..."
@@ -1046,7 +1050,7 @@ def main(run_review=True):
         )
 
         print(
-            "20-JOB PIPELINE TEST COMPLETED"
+            "JOB PIPELINE RUN COMPLETED"
         )
 
         print(

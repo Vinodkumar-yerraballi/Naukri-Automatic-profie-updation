@@ -16,10 +16,15 @@ only, without starting the Naukri job search, run:
 
 The command uploads a changed resume and uses the configured AI provider to
 extract resume-supported skills, employment, and projects. It adds missing
-entries and preserves existing ones. Profile fields are checked on each run,
-even when the resume file has not changed, so rerunning the command can add
-skills or records that were missing before. Confirm the results on Foundit
-after the command.
+entries and preserves existing ones. The regular job-pipeline run also
+rechecks Foundit fields. To force a fresh check on every enabled platform,
+including Naukri and Shine, even when the resume file has not changed, run:
+
+   .venv\Scripts\python.exe main.py --update-all-profiles
+
+Confirm the results on Foundit after the command. This feature does not
+change Foundit's About/summary field, and it does not search for or apply to
+Foundit jobs.
 
 To update Naukri and every other enabled platform without starting the
 Naukri job search, run:

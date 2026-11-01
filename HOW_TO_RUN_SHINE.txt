@@ -36,6 +36,9 @@ summary, skills, explicitly stated total experience, and current company and
 designation. Existing skills are preserved. Shine's current editor does not
 provide supported project or education editors, and the certification form
 requires validity information not extracted from the resume; those sections
-are left unchanged. The site must confirm each supported update before it is
-recorded. Complete sign-in and security checks yourself, and verify the resume
-and profile details on Shine after each update.
+are left unchanged. Use
+`.venv\Scripts\python.exe main.py --update-all-profiles` to force a fresh
+check of supported profile fields even if the resume file has not changed.
+The site must confirm each supported update before it is recorded. Complete
+sign-in and security checks yourself, and verify the resume and profile
+details on Shine after each update.

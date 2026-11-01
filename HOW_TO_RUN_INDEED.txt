@@ -22,5 +22,6 @@ If the app cannot confirm success, verify the profile before retrying.
 
 Indeed login and verification checks must be completed by you. This feature
 uploads the resume only; skills, work experience, and projects are not
-automatically filled on Indeed. It does not apply to jobs on Indeed and cannot
-guarantee interviews or shortlisting.
+automatically filled on Indeed. The job search runs on Naukri, not Indeed.
+This tool does not apply to jobs on Indeed and cannot guarantee interviews or
+shortlisting.

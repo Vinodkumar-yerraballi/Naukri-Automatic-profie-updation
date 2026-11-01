@@ -25,7 +25,8 @@ config\job_preferences.yaml and can be adjusted if Wellfound changes its
 pages or account flow.
 
 This updater uploads the resume only; it does not edit Wellfound profile
-fields or apply to jobs. Some Wellfound applications may ask you to select a
-resume separately. The site must confirm a profile upload before it is
-recorded. Complete sign-in and security checks yourself, and verify the
-resume on Wellfound after each update.
+fields such as skills or About/summary, and it does not search or apply to
+Wellfound jobs. Some Wellfound applications may ask you to select a resume
+separately. The site must confirm a profile upload before it is recorded.
+Complete sign-in and security checks yourself, and verify the resume on
+Wellfound after each update.

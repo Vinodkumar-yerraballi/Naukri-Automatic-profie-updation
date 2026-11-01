@@ -31,6 +31,8 @@ job_search:
 
   posted_within_hours: 24
 
+  max_jobs_per_run: 20
+
 
 matching:
 
@@ -70,7 +72,7 @@ resume_tailoring:
 
   upload_best_draft_to_profiles: true
 
-  resume_path: C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation\data\resume.pdf
+  resume_path: data/resume.pdf
 
   output_directory: data/processed/resumes
 

@@ -44,6 +44,12 @@ def test_create_draft_writes_job_specific_docx(tmp_path):
     assert any("AI-assisted draft" in paragraph for paragraph in paragraphs)
     assert any("Experienced analyst." in paragraph for paragraph in paragraphs)
     assert any(paragraph == "Python" for paragraph in paragraphs)
+    text_path = output_path.with_suffix(".txt")
+    assert text_path.is_file()
+    text = text_path.read_text(encoding="utf-8")
+    assert "Data Analyst - Example Co" in text
+    assert "Experienced analyst." in text
+    assert "- Python" in text
 
 
 def test_create_draft_requires_description(tmp_path):

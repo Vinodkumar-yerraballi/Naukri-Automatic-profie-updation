@@ -9,8 +9,9 @@ This is a **review-first** job assistant. It requires your terminal approval
 for each job before attempting a supported one-step Naukri application. It
 can update the Naukri resume headline and key skills and add resume-supported
 projects. It can also add resume-supported skills, work experience, and
-projects to Foundit. Other candidate platforms currently support resume
-uploads only.
+projects to Foundit. Shine supports updates to its summary, skills, and
+selected work details. Indeed, Hirist, and Wellfound currently support resume
+uploads only. Job discovery currently runs on Naukri only.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -26,10 +27,11 @@ uploads only.
    description, and skips descriptions that contain recognized page-interface
    text.
 5. Stores matching jobs locally and lets you review the queue.
-6. Can generate a separate DOCX resume draft for a suitable job.
-7. Can upload your changed source PDF to your signed-in Naukri, Foundit,
-   Indeed, Shine, Hirist, and Wellfound profiles, and add resume-supported
-   skills, experience, and projects to Naukri and Foundit.
+6. Can generate separate DOCX and plain-text resume drafts for a suitable
+   job.
+7. Can upload your changed source resume to your signed-in Naukri, Foundit,
+   Indeed, Shine, Hirist, and Wellfound profiles, and update the supported
+   Naukri, Foundit, and Shine profile fields described below.
 8. Can prepare a Naukri profile-update proposal as JSON for you to review and
    apply manually.
 9. With `application.auto_apply: true`, can attempt a supported one-step
@@ -75,9 +77,11 @@ resume, login session, API keys, or generated drafts.
 ## Requirements and release status
 
 - Windows 10/11 or another operating system that can run Python and Chromium.
-- Python **3.10 or newer**.
+- Python **3.10 or newer**. On Windows, Python 3.15 may require Microsoft
+  C++ Build Tools to install PyYAML if pip cannot find a compatible wheel;
+  Python 3.14 currently has a compatible wheel.
 - A Naukri account for browsing and optional resume upload.
-- An AI provider for resume tailoring (Gemini, Ollama, or Anthropic).
+- An AI provider for resume tailoring (Groq, Gemini, Ollama, or Anthropic).
 
 The runtime dependencies are listed in `requirements.txt`:
 
@@ -114,15 +118,25 @@ Use your actual project folder path in place of the example.
 
 ### 2. Create a virtual environment and install dependencies
 
+Install Python 3.14 if it is not already installed. With the Windows Python
+install manager, run:
+
 ```powershell
-py -3.10 -m venv .venv
+py install 3.14
+```
+
+Then create the environment and install the dependencies:
+
+```powershell
+py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m playwright install chromium
 ```
 
-If the Python launcher is unavailable, install Python 3.10+ and use
-`python -m venv .venv` in the first command.
+If the Python launcher is unavailable, install Python 3.14 and use
+`python -m venv .venv` in the first command. Python 3.10+ is supported, but
+Python 3.14 is recommended on Windows to avoid building PyYAML from source.
 
 ### 3. Add your source resume
 
@@ -303,9 +317,9 @@ profile fields.
   manually and retry. The automation does not bypass login, CAPTCHA, or
   verification.
 - Foundit can add missing resume-supported skills, employment entries, and
-  projects. It preserves existing entries rather than replacing them. Profile
-  fields are processed once per resume version using the configured AI
-  provider. Indeed currently supports resume upload only.
+  projects. It preserves existing entries rather than replacing them. The
+  configured AI provider extracts the proposed profile fields from the
+  selected source resume. Indeed currently supports resume upload only.
 - Naukri can update the resume headline and key skills and add missing
   resume-supported projects. Existing projects are preserved. Profile fields
   are processed from resume-supported information. Use
@@ -318,7 +332,9 @@ profile fields.
   validity details not extracted from the resume, so those sections are left
   unchanged.
 - Jobs scoring at or above `matching.minimum_score` (75 by default) receive
-  separate job-specific DOCX drafts. When
+  separate job-specific DOCX and `.txt` drafts under
+  `data\processed\resumes`. This is a job-relevance score, not an ATS score.
+  When
   `resume_tailoring.upload_best_draft_to_profiles` is enabled, the highest
   scoring draft from the run is uploaded to each enabled resume platform.
   The source resume is not overwritten. Indeed and Hirist currently support
@@ -326,6 +342,11 @@ profile fields.
   Foundit, and Shine for their supported fields.
 - Use `--update-all-profiles` to force a fresh reconciliation of supported
   profile fields from the source resume, including Naukri, Foundit, and Shine.
+- Each run searches up to `job_search.max_searches_per_run` role/location
+  combinations, filters listings to `job_search.posted_within_hours`, and
+  processes up to `job_search.max_jobs_per_run` listings (20 by default).
+  Job discovery currently runs on Naukri only; other platform commands update
+  resumes and, on supported sites, profile fields.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.
@@ -349,8 +370,9 @@ profile fields.
   universal ATS score. Tailoring does not guarantee or artificially raise a
   score to 90%; it only rephrases and prioritizes facts present in the source.
 - Where a job description is available and the job meets the configured
-  criteria, a job-specific resume draft can be saved as a DOCX under
-  `data\processed\resumes`.
+  criteria, job-specific resume drafts are saved as DOCX and plain-text
+  sidecar files under `data\processed\resumes`. Both drafts use only
+  resume-supported facts and must be reviewed before use.
 - Naukri may show CAPTCHA, OTP, or other security checks. Complete these
   yourself in the browser; the app does not bypass them.
 

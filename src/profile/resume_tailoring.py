@@ -142,6 +142,7 @@ class ResumeTailoringService:
             raise RuntimeError("The configured AI provider returned an empty resume draft.")
 
         output_path = self._output_path(job)
+        self._write_text(output_path.with_suffix(".txt"), job, tailored_text.strip())
         self._write_docx(output_path, job, tailored_text.strip())
         return output_path
 
@@ -498,3 +499,15 @@ class ResumeTailoringService:
             else:
                 document.add_paragraph(stripped)
         document.save(path)
+
+    @staticmethod
+    def _write_text(path: Path, job: dict, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        title = job.get("title", "Tailored Resume")
+        company = job.get("company", "Company")
+        content = (
+            "AI-assisted draft. Review all facts and wording before using.\n"
+            f"{title} - {company}\n\n"
+            f"{text.rstrip()}\n"
+        )
+        path.write_text(content, encoding="utf-8")

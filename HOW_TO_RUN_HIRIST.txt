@@ -32,6 +32,7 @@ hirist_profile.profile_url to that URL in config\job_preferences.yaml and
 retry. Do not share passwords, OTPs, or private session data.
 
 This updater uploads the resume only; it does not edit Hirist profile fields
-or apply to jobs. The site must confirm the upload before it is recorded.
-Complete sign-in and security checks yourself, and verify the resume on
-Hirist after each update.
+such as skills or About/summary, and it does not search or apply to Hirist
+jobs. The site must confirm the upload before it is recorded. Complete
+sign-in and security checks yourself, and verify the resume on Hirist after
+each update.

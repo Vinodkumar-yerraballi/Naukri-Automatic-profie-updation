@@ -18,9 +18,14 @@ The command uploads a changed resume, updates the resume headline and
 resume-supported key skills, and adds projects that are not already on your
 profile. Existing projects are preserved. The configured AI provider must be
 available to extract the fields. Profile-field updates are tracked in
-data\naukri_profile_update.json; the combined daily updater rechecks fields
-each run, while this command only processes a resume version once. Check your
-Naukri profile after the run.
+data\naukri_profile_update.json and normally run when the source resume
+changes. To force a fresh profile-field check on every enabled platform,
+including Naukri, run:
+
+   .venv\Scripts\python.exe main.py --update-all-profiles
+
+The current Naukri updater does not edit the About/profile-summary section.
+Review the headline, skills, and projects on Naukri after the command.
 
 The normal command `python main.py` also attempts the configured Naukri
 resume/profile update, then continues with the Naukri job search. The daily

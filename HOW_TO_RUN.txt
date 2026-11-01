@@ -62,8 +62,10 @@ COMMANDS YOU WILL USE
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
-   Shine, Hirist, Indeed, and Wellfound commands upload resumes only. Naukri
-   and Foundit also update configured resume-supported profile fields.
+   Indeed, Hirist, and Wellfound currently upload resumes only. Naukri and
+   Foundit update supported headline/skills/projects or skills/work-history/
+   projects; Shine updates summary, skills, and supported work details.
+   Profile fields not listed here are not automated.
 
 5. Start the daily job/resume pipeline:
 
@@ -125,7 +127,10 @@ The configured job search covers Data Analyst, Data Scientist, Business
 Intelligence, reporting, and related machine-learning roles. It prioritizes
 searching every configured role each run, rotates locations when the daily
 search limit is reached, and passes the configured experience and posting-age
-filters to Naukri (currently 0-2 years and posted within 24 hours).
+filters to Naukri (currently 0-2 years and posted within 24 hours). It
+processes up to 20 listings per run. Edit job_search.max_jobs_per_run,
+posted_within_hours, and max_searches_per_run in
+config\job_preferences.yaml to change these limits.
 
 
 REVIEW AND APPLY FOR JOBS
@@ -155,9 +160,10 @@ It stops rather than automating multi-step forms, external application sites,
 or uncertain page states. It does not bypass login, CAPTCHA, OTP, or other
 verification.
 
-The tailored DOCX draft is saved locally under data\processed\resumes; it is
-not automatically attached to the Naukri application. Naukri uses the resume
-already on your profile. Check Naukri after each attempt. If the app reports
+The tailored DOCX and plain-text drafts are saved locally under
+data\processed\resumes; they are not automatically attached to the Naukri
+application. Naukri uses the resume already on your profile. Check Naukri
+after each attempt. If the app reports
 an unconfirmed result, verify the application on Naukri before trying again.
 The configured daily limit counts confirmed and uncertain attempts.
 
@@ -173,9 +179,10 @@ ABOUT MATCH AND ATS SCORES
 
 The configured matching.minimum_score is this project's job-relevance score.
 It is not an ATS score. Different employers and applicant systems use
-different criteria, so the project cannot guarantee a 90% ATS score, an
-interview, or a job offer. Keep all resume and profile details truthful and
-review AI-generated content before using it.
+different criteria, so the project cannot guarantee or manufacture a 75-95%
+ATS score, an interview, or a job offer. The configured 75 threshold selects
+jobs by relevance. Keep all resume and profile details truthful and review
+both generated draft formats before using them.
 
 
 PRIVACY
