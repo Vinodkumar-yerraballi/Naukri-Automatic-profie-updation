@@ -110,15 +110,15 @@ class ResumeProfileProposal:
                 }
             ],
         }
+        requested_schema = {
+            key: value for key, value in schema.items() if key in sections
+        }
         return (
             "Extract a candidate profile update from the source resume. "
             "Return valid JSON only, with exactly these top-level keys and "
             "matching value shapes:\n"
-            f"{json.dumps(schema, ensure_ascii=True)}\n"
+            f"{json.dumps(requested_schema, ensure_ascii=True)}\n"
             f"Prepare only these sections: {json.dumps(sorted(sections))}.\n"
-            "Return every top-level key shown in the schema. For sections not "
-            "being prepared, use null for scalar fields and empty lists for "
-            "list fields.\n"
             "Rules: include only facts explicitly stated in the resume; do "
             "not invent or infer employers, titles, dates, skills, degrees, "
             "certifications, metrics, or responsibilities. Use null or an "

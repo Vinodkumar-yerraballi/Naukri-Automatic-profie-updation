@@ -53,9 +53,7 @@ def test_create_proposal_limits_prompt_and_marks_review_required():
     assert proposal["unmatched_existing_records"] == "preserve"
     assert proposal["sections"] == ["education", "headline"]
     assert "phone numbers" in ai_service.prompt
-    assert "explicitly states total professional experience" in (
-        ai_service.prompt
-    )
+    assert '"total_experience"' not in ai_service.prompt
     assert '"headline"' in ai_service.prompt
 
 
@@ -70,6 +68,10 @@ def test_create_profile_proposal_can_be_marked_for_automatic_update():
     )
 
     assert proposal["review_required"] is False
+    assert '"headline"' not in proposal_builder.ai_service.prompt
+    assert '"skills"' in proposal_builder.ai_service.prompt
+    assert '"employment"' in proposal_builder.ai_service.prompt
+    assert '"projects"' in proposal_builder.ai_service.prompt
 
 
 def test_create_proposal_rejects_unknown_section():

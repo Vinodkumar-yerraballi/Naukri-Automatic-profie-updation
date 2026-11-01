@@ -277,7 +277,35 @@ def test_ollama_json_completion_requests_json_mode(tmp_path, monkeypatch):
 
     assert result == '{"skills": ["Python"]}'
     assert calls["payload"]["format"] == "json"
-    assert calls["payload"]["options"]["num_predict"] == 512
+    assert calls["payload"]["options"]["num_predict"] == 2048
+
+
+def test_ollama_uses_long_single_attempt_for_local_inference(
+    tmp_path,
+    monkeypatch,
+):
+    resume_path = tmp_path / "resume.txt"
+    resume_path.write_text("Python and SQL", encoding="utf-8")
+    service = ResumeTailoringService(
+        resume_path=resume_path,
+        output_directory=tmp_path / "drafts",
+        provider="ollama",
+    )
+    calls = []
+
+    def timeout_request(request, timeout):
+        calls.append(timeout)
+        raise TimeoutError("local generation is still running")
+
+    monkeypatch.setattr(resume_tailoring, "urlopen", timeout_request)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"timed out after 1 attempt\(s\) \(180s\)",
+    ):
+        service._request_completion("Extract profile facts", "json")
+    assert calls == [180]
+    assert calls == [180]
 
 
 def test_gemini_completion_uses_api_key_header(tmp_path, monkeypatch):

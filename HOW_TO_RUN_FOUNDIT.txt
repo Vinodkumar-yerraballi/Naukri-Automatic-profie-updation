@@ -41,6 +41,17 @@ data\foundit_resume_upload.json and data\foundit_profile_update.json. If the
 site form or AI extraction fails, the command reports the error and does not
 mark the profile-field update complete. Check Foundit before retrying.
 
+If the upload reports that it could not confirm success, inspect the resume
+shown on Foundit before running the command again. The upload state is saved
+only after confirmation, so a retry may upload the same file again.
+
+If Groq returns HTTP 403, check the API key, account/model access, and any
+network or provider restrictions in Groq's official console. The local
+Ollama fallback uses the configured model and can take up to three minutes
+for profile extraction; confirm Ollama is running with
+`ollama list`. The resume is sent to Ollama on this computer when the local
+fallback is used.
+
 Foundit login, CAPTCHA, OTP, and verification checks must be completed by you.
 The app does not overwrite existing work or project records, and it does not
 apply to jobs on Foundit. It cannot guarantee interviews or shortlisting.

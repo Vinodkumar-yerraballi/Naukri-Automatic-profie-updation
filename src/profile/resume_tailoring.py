@@ -21,6 +21,7 @@ class ResumeTailoringService:
     GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
     API_VERSION = "2023-06-01"
     REQUEST_TIMEOUT_SECONDS = 60
+    OLLAMA_REQUEST_TIMEOUT_SECONDS = 180
     MAX_REQUEST_ATTEMPTS = 2
 
     def __init__(
@@ -216,9 +217,7 @@ class ResumeTailoringService:
                 "think": False,
                 "options": {
                     "temperature": 0.2,
-                    "num_predict": (
-                        512 if response_format == "json" else 2048
-                    ),
+                    "num_predict": 2048,
                 },
                 "messages": [
                     {
@@ -308,35 +307,43 @@ class ResumeTailoringService:
             headers=headers,
             method="POST",
         )
+        request_timeout = (
+            self.OLLAMA_REQUEST_TIMEOUT_SECONDS
+            if self.provider == "ollama"
+            else self.REQUEST_TIMEOUT_SECONDS
+        )
+        max_attempts = (
+            1 if self.provider == "ollama" else self.MAX_REQUEST_ATTEMPTS
+        )
 
         try:
-            for attempt in range(self.MAX_REQUEST_ATTEMPTS):
+            for attempt in range(max_attempts):
                 try:
                     print(
                         f"{self.provider.title()} request attempt "
-                        f"{attempt + 1}/{self.MAX_REQUEST_ATTEMPTS}; "
-                        f"timeout {self.REQUEST_TIMEOUT_SECONDS}s."
+                        f"{attempt + 1}/{max_attempts}; "
+                        f"timeout {request_timeout}s."
                     )
                     with urlopen(
                         request,
-                        timeout=self.REQUEST_TIMEOUT_SECONDS,
+                        timeout=request_timeout,
                     ) as response:
                         result = json.loads(response.read().decode("utf-8"))
                     break
                 except TimeoutError as error:
-                    if attempt + 1 < self.MAX_REQUEST_ATTEMPTS:
+                    if attempt + 1 < max_attempts:
                         time.sleep(2**attempt)
                         continue
                     raise RuntimeError(
                         f"{self.provider} request timed out after "
-                        f"{self.MAX_REQUEST_ATTEMPTS} attempts "
-                        f"{self.REQUEST_TIMEOUT_SECONDS}s each). Check your "
-                        "connection and try again."
+                        f"{max_attempts} attempt(s) "
+                        f"({request_timeout}s). Check your connection and "
+                        "try again."
                     ) from error
                 except HTTPError as error:
                     if (
                         error.code in {500, 502, 503, 504}
-                        and attempt + 1 < self.MAX_REQUEST_ATTEMPTS
+                        and attempt + 1 < max_attempts
                     ):
                         time.sleep(2**attempt)
                         continue
@@ -353,7 +360,7 @@ class ResumeTailoringService:
                 except URLError as error:
                     if (
                         isinstance(error.reason, TimeoutError)
-                        and attempt + 1 < self.MAX_REQUEST_ATTEMPTS
+                        and attempt + 1 < max_attempts
                     ):
                         time.sleep(2**attempt)
                         continue
@@ -362,7 +369,7 @@ class ResumeTailoringService:
             if isinstance(error.reason, TimeoutError):
                 raise RuntimeError(
                     f"{self.provider} request timed out after "
-                    f"{self.REQUEST_TIMEOUT_SECONDS} seconds. Check your "
+                    f"{request_timeout} seconds. Check your "
                     "connection and try again."
                 ) from error
             raise RuntimeError(
