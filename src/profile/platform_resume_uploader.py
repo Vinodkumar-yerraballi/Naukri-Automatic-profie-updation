@@ -149,6 +149,41 @@ class CandidatePlatformBrowser:
             )
         self._save_shine_session()
 
+    def _wait_for_shine_action_button(self, *button_names: str) -> Locator:
+        for button_name in button_names:
+            button = self.page.get_by_role(
+                "button",
+                name=button_name,
+                exact=False,
+            )
+            try:
+                button.wait_for(
+                    state="visible",
+                    timeout=30000,
+                )
+                return button
+            except PlaywrightError:
+                continue
+        fallback_button = self.page.locator(
+            "button, [role='button'], input[type='button'], "
+            "input[type='submit']"
+        )
+        if fallback_button.count() > 0:
+            try:
+                fallback_button.first.wait_for(
+                    state="visible",
+                    timeout=30000,
+                )
+                return fallback_button.first
+            except PlaywrightError:
+                pass
+        current_path = urlparse(self.page.url).path
+        raise RuntimeError(
+            "Shine's profile editor did not finish loading: its Update "
+            "button was not visible after 30 seconds "
+            f"(current page: {current_path or 'unknown'})."
+        )
+
     def prepare_profile_update(self) -> None:
         if self.platform != "shine":
             raise ValueError(
@@ -166,11 +201,6 @@ class CandidatePlatformBrowser:
             getattr(response, "status", None) if response is not None else None
         )
         current_url = self.page.url.lower()
-        profile_update_button = self.page.get_by_role(
-            "button",
-            name="Update",
-            exact=True,
-        )
         if (
             (response_status is not None and response_status >= 400)
             or "/myshine/login" in current_url
@@ -182,9 +212,12 @@ class CandidatePlatformBrowser:
                 "before retrying."
             )
         try:
-            profile_update_button.wait_for(
-                state="visible",
-                timeout=30000,
+            self._wait_for_shine_action_button(
+                "Update",
+                "Edit",
+                "Save",
+                "Submit",
+                "Add",
             )
         except PlaywrightError as error:
             current_path = urlparse(self.page.url).path
@@ -626,10 +659,19 @@ class CandidatePlatformBrowser:
             )
 
         section = heading.locator("xpath=..")
-        action = section.get_by_role(
-            "button",
-            name=re.compile(r"^(add|update|edit)$", re.IGNORECASE),
+        action = self._wait_for_shine_action_button(
+            "Add",
+            "Update",
+            "Edit",
+            "Save",
+            "Submit",
         )
+        if action.count() != 1:
+            action = section.get_by_role(
+                "button",
+                name=re.compile(r"^(add|update|edit|save|submit)$", re.IGNORECASE),
+                exact=False,
+            )
         if action.count() != 1:
             raise RuntimeError(
                 "Could not find Shine's Profile Summary editor."
@@ -682,14 +724,28 @@ class CandidatePlatformBrowser:
         employment: object,
         total_experience: object,
     ) -> list[str]:
-        update_button = self.page.get_by_role(
-            "button",
-            name="Update",
-            exact=True,
+        update_button = self._wait_for_shine_action_button(
+            "Update",
+            "Edit",
+            "Save",
+            "Submit",
+            "Add",
         )
         if update_button.count() != 1:
+            try:
+                update_button = self.page.get_by_role(
+                    "button",
+                    name="Update",
+                    exact=False,
+                )
+            except PlaywrightError:
+                update_button = self.page.locator(
+                    "button:has-text('Update'), button:has-text('Edit'), "
+                    "button:has-text('Save'), button:has-text('Submit')"
+                )
+        if update_button.count() != 1:
             raise RuntimeError(
-                "Could not find Shine's profile-details Update button."
+                "Could not find Shine's profile-details update control."
             )
         update_button.click(timeout=10000)
 

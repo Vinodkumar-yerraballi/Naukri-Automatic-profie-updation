@@ -268,9 +268,23 @@ class NaukriBrowser:
                 timeout=8000,
             )
         except PlaywrightError as error:
+            validation_messages = [
+                message.strip()
+                for message in self.page.locator(
+                    "[role='alert'], .error, .error-message, "
+                    ".form-error, .validation-error"
+                ).all_inner_texts()
+                if message.strip()
+            ]
+            validation_detail = (
+                " Validation message: " + "; ".join(validation_messages[:3])
+                if validation_messages
+                else ""
+            )
             raise RuntimeError(
                 "Naukri kept the profile editor open after Save. Check "
                 "validation messages and the profile manually."
+                f"{validation_detail}"
             ) from error
 
     def _close_naukri_editor(self) -> None:
@@ -323,14 +337,15 @@ class NaukriBrowser:
             raise RuntimeError("Naukri's key-skills field was not found.")
 
         existing = {
-            text.strip().casefold()
+            self._normalize_naukri_skill(text)
             for text in self.page.locator(".chipsContainer .chip").all_inner_texts()
             if text.strip()
         }
         added = False
         try:
             for skill in values:
-                if skill.casefold() in existing:
+                normalized_skill = self._normalize_naukri_skill(skill)
+                if normalized_skill in existing:
                     continue
                 field.fill(skill)
                 self.page.wait_for_timeout(500)
@@ -343,7 +358,19 @@ class NaukriBrowser:
                     continue
                 exact_option.click(timeout=10000)
                 self.page.wait_for_timeout(200)
-                existing.add(skill.casefold())
+                current_skills = {
+                    self._normalize_naukri_skill(text)
+                    for text in self.page.locator(
+                        ".chipsContainer .chip"
+                    ).all_inner_texts()
+                    if text.strip()
+                }
+                if normalized_skill not in current_skills:
+                    raise RuntimeError(
+                        f"Naukri did not add the selected key skill "
+                        f"'{skill}'."
+                    )
+                existing = current_skills
                 added = True
             if added:
                 self._save_naukri_editor("#keySkillSugg")
@@ -355,17 +382,24 @@ class NaukriBrowser:
             raise
 
     def _naukri_exact_suggestion(self, value: str):
+        normalized_value = self._normalize_naukri_skill(value)
         suggestions = self.page.locator(
             "li, [role='option'], .sWrap .chip, .suggestor-box li"
         )
         for suggestion in suggestions.all():
             if (
                 suggestion.is_visible()
-                and suggestion.inner_text().strip().casefold()
-                == value.casefold()
+                and self._normalize_naukri_skill(suggestion.inner_text())
+                == normalized_value
             ):
                 return suggestion
         return None
+
+    @staticmethod
+    def _normalize_naukri_skill(value: str) -> str:
+        normalized = re.sub(r"\s+", " ", value).strip()
+        normalized = re.sub(r"\s*[×✕]\s*$", "", normalized)
+        return normalized.casefold()
 
     def _update_naukri_projects(self, projects: object) -> bool:
         if not isinstance(projects, list):

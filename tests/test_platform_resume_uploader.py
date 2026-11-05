@@ -59,8 +59,6 @@ class FakePage:
 
     def get_by_role(self, role, name=None, exact=False):
         assert role == "button"
-        assert name == "Update"
-        assert exact is True
         page = self
 
         class FakeRoleLocator:

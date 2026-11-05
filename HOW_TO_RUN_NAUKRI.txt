@@ -24,6 +24,12 @@ including Naukri, run:
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
+The updater preserves existing key skills; it does not delete and re-add
+them. It adds a proposed skill only after Naukri offers and accepts an exact
+match. If a skill is skipped, check the key-skills editor on Naukri manually.
+If a project cannot be saved, the command reports visible form validation
+messages when available; resolve those on Naukri before retrying.
+
 The current Naukri updater does not edit the About/profile-summary section.
 Review the headline, skills, and projects on Naukri after the command.
 
