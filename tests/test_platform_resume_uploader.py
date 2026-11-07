@@ -893,11 +893,14 @@ def test_shine_skills_are_deduplicated_without_truncating_names():
     )
 
 
-def test_shine_summary_editor_uses_action_inside_summary_section():
+@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH"])
+def test_shine_summary_editor_uses_action_inside_summary_section(method):
     class Response:
         url = "https://www.shine.com/api/v4/candidate-summary/123/"
         status = 200
-        request = type("Request", (), {"method": "PUT"})()
+        request = None
+
+    Response.request = type("Request", (), {"method": method})()
 
     class ResponseExpectation:
         value = Response()
@@ -920,7 +923,14 @@ def test_shine_summary_editor_uses_action_inside_summary_section():
         def count(self):
             return self.result_count
 
+        def wait_for(self, state, timeout):
+            assert state == "visible"
+            assert timeout == 30000
+
         def is_visible(self):
+            return True
+
+        def is_enabled(self):
             return True
 
         def click(self, timeout):
@@ -956,6 +966,11 @@ def test_shine_summary_editor_uses_action_inside_summary_section():
                 return save_action
             return Locator()
 
+        def get_by_text(self, text, exact):
+            assert text == "Profile Summary"
+            assert exact is True
+            return heading
+
         def locator(self, selector):
             assert selector == (
                 "textarea[placeholder='Type your profile summary here...']"
@@ -974,6 +989,142 @@ def test_shine_summary_editor_uses_action_inside_summary_section():
     assert add_action.clicked is True
     assert summary_field.filled == "Accurate profile summary"
     assert save_action.clicked is True
+
+
+def test_shine_summary_editor_uses_icon_when_summary_already_exists():
+    class Response:
+        url = "https://www.shine.com/api/v4/candidate-summary/123/"
+        status = 200
+        request = type("Request", (), {"method": "PUT"})()
+
+    class Locator:
+        def __init__(self, count=0):
+            self.result_count = count
+            self.first = self
+            self.clicked = False
+            self.filled = None
+
+        def count(self):
+            return self.result_count
+
+        def wait_for(self, state, timeout):
+            assert state == "visible"
+            assert timeout == 30000
+
+        def is_visible(self):
+            return True
+
+        def is_enabled(self):
+            return True
+
+        def click(self, timeout):
+            self.clicked = True
+
+        def fill(self, value):
+            self.filled = value
+
+        def locator(self, selector):
+            if selector == "xpath=..":
+                return section
+            assert selector == "button[class*='editIconButton_editBtn']"
+            return edit_icon
+
+        def get_by_role(self, role, name, exact):
+            return Locator()
+
+    edit_icon = Locator(count=1)
+    summary_label = Locator(count=1)
+    section = Locator(count=1)
+    summary_field = Locator(count=1)
+    save_button = Locator(count=1)
+
+    class ResponseExpectation:
+        value = Response()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class Page:
+        url = "https://www.shine.com/myshine/myprofile"
+
+        def get_by_text(self, text, exact):
+            assert text == "Profile Summary"
+            return summary_label
+
+        def get_by_role(self, role, name, exact):
+            if role == "heading":
+                return Locator()
+            if role == "button" and name == "Save":
+                return save_button
+            return Locator()
+
+        def locator(self, selector):
+            assert selector == (
+                "textarea[placeholder='Type your profile summary here...']"
+            )
+            return summary_field
+
+        def expect_response(self, predicate, timeout):
+            assert predicate(Response())
+            return ResponseExpectation()
+
+    browser = CandidatePlatformBrowser("shine")
+    browser.page = Page()
+
+    assert browser._save_shine_summary("Updated profile summary") is True
+    assert edit_icon.clicked is True
+    assert summary_field.filled == "Updated profile summary"
+    assert save_button.clicked is True
+
+
+def test_shine_summary_is_trimmed_to_editor_limit_at_word_boundary():
+    summary = " ".join(["resume-supported"] * 30)
+
+    shortened = CandidatePlatformBrowser._shine_summary_value(summary)
+
+    assert len(shortened) <= 240
+    assert shortened.endswith("...")
+    assert not shortened[:-3].endswith(" ")
+    assert len(shortened.split()) < len(summary.split())
+
+
+def test_shine_work_profile_uses_exact_update_button():
+    class Locator:
+        def __init__(self, items=None):
+            self.items = items or []
+            self.first = self
+            self.clicked = False
+
+        def count(self):
+            return len(self.items) if self.items else 1
+
+        def click(self, timeout):
+            self.clicked = True
+
+        def all(self):
+            return []
+
+    update_button = Locator()
+
+    class Page:
+        def get_by_role(self, role, name, exact):
+            assert role == "button"
+            assert name == "Update"
+            assert exact is True
+            return update_button
+
+        def locator(self, selector):
+            assert selector == "li[class*='selectedSkill']"
+            return Locator()
+
+    browser = CandidatePlatformBrowser("shine")
+    browser.page = Page()
+
+    assert browser._save_shine_work_profile([], [], None) == []
+    assert update_button.clicked is True
 
 
 def test_shine_total_experience_only_accepts_supported_year_values():

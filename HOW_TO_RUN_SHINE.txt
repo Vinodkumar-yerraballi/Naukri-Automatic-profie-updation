@@ -33,11 +33,17 @@ If Shine changes these pages, open them manually while signed in and update
 the corresponding shine_profile URL in config\job_preferences.yaml.
 
 The updater also uses resume-supported details to update Shine's profile
-summary, skills, explicitly stated total experience, and current company and
-designation. Existing skills are preserved. Shine's current editor does not
-provide supported project or education editors, and the certification form
-requires validity information not extracted from the resume; those sections
-are left unchanged. Use
+summary and skills. New skills are assigned the configured
+`shine_profile.skill_experience` value (currently `0.5 years`); existing
+skills are preserved, and Shine's current limit is enforced. Change this
+value in `config\job_preferences.yaml` if a different tenure is accurate.
+Employment entries are left unchanged when the current form requires job
+details that are not present in the resume proposal. Shine's current editor
+does not provide supported project or education editors, and the
+certification form requires validity information not extracted from the
+resume; those sections are left unchanged. Shine's summary editor has a
+240-character safe limit, so longer resume-derived summaries are shortened
+at a word boundary. Use
 `.venv\Scripts\python.exe main.py --update-all-profiles` to force a fresh
 check of supported profile fields even if the resume file has not changed.
 The site must confirm each supported update before it is recorded. Complete

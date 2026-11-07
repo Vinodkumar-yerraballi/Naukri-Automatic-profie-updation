@@ -13,10 +13,12 @@ class JobCollector:
     def __init__(
         self,
         evaluator: JobEvaluator,
-        repository: JobRepository
+        repository: JobRepository,
+        allow_unknown_experience: bool = False,
     ):
         self.evaluator = evaluator
         self.repository = repository
+        self.allow_unknown_experience = allow_unknown_experience
 
     def process_job(
         self,
@@ -60,7 +62,10 @@ class JobCollector:
             )
         )
 
-        if not experience_result["match"]:
+        experience_is_unknown = not job.get("experience")
+        if not experience_result["match"] and not (
+            self.allow_unknown_experience and experience_is_unknown
+        ):
             return {
                 "job": job,
                 "evaluation": None,

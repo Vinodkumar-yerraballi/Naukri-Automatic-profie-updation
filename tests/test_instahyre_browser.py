@@ -135,6 +135,23 @@ def test_select_filter_chooses_matching_visible_option():
     assert browser.page.options[1].clicked is False
 
 
+def test_select_filter_maps_remote_to_work_from_home():
+    browser = InstahyreBrowser()
+    browser.page = FakeFilterPage(
+        [FakeOption("Work From Home"), FakeOption("Anywhere in India")]
+    )
+
+    browser._select_filter(
+        "#locations-selectized",
+        "Remote",
+        "location",
+    )
+
+    assert browser.page.field.value == "Work From Home"
+    assert browser.page.options[0].clicked is True
+    assert browser.page.options[1].clicked is False
+
+
 def test_select_filter_reports_missing_site_option():
     browser = InstahyreBrowser()
     browser.page = FakeFilterPage([FakeOption("Data Engineer")])

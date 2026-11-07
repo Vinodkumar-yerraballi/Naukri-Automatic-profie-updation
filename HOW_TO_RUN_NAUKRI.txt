@@ -14,24 +14,34 @@ job search, run:
 
    .venv\Scripts\python.exe main.py --update-naukri-profile
 
-The command uploads a changed resume, updates the resume headline and
-resume-supported key skills, and adds projects that are not already on your
-profile. Existing projects are preserved. The configured AI provider must be
-available to extract the fields. Profile-field updates are tracked in
+The command uploads a changed resume and updates the sections selected in
+`naukri_profile.profile_update_sections` in config\job_preferences.yaml. The
+current configuration selects the headline, key skills, and employment.
+Projects are not selected. Profile-field updates are tracked in
 data\naukri_profile_update.json and normally run when the source resume
 changes. To force a fresh profile-field check on every enabled platform,
 including Naukri, run:
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
-The updater preserves existing key skills; it does not delete and re-add
-them. It adds a proposed skill only after Naukri offers and accepts an exact
-match. If a skill is skipped, check the key-skills editor on Naukri manually.
-If a project cannot be saved, the command reports visible form validation
-messages when available; resolve those on Naukri before retrying.
+The updater preserves existing key skills and work-history entries. It does
+not delete and re-add skills. A proposed skill is saved only when Naukri
+offers and accepts an exact match; if suggestions are missing or the form
+rejects a skill, the command reports the remaining skills instead of claiming
+the profile is up to date. Check Naukri's skill editor and add unsupported
+skills manually if needed.
+
+Employment entries already present with a matching title, company, and start
+date are not duplicated. A new entry is added only when the resume proposal
+contains the fields required by Naukri, including role-specific skills,
+employment type, and complete dates. A new current role is left unchanged
+because Naukri requires a notice period that is not extracted from the
+resume. Existing matching experience can therefore remain unchanged while
+the key-skills section is updated.
 
 The current Naukri updater does not edit the About/profile-summary section.
-Review the headline, skills, and projects on Naukri after the command.
+Review the headline, skills, and employment history on Naukri after the
+command.
 
 The normal command `python main.py` also attempts the configured Naukri
 resume/profile update, then continues with the Naukri job search. The daily
@@ -50,9 +60,10 @@ account signed in so the saved browser sessions can be used.
 
 If the site form changes, the AI cannot extract valid data, or Naukri asks for
 verification, the command reports the failure and does not mark the profile
-update complete. Existing projects are not overwritten. Check your profile
-before retrying. Run --prepare-profile-update for a proposal without making
-profile changes. See HOW_TO_RUN.txt for job-search guidance.
+update complete. Existing projects are not overwritten if that section is
+enabled. Check your profile before retrying. Run --prepare-profile-update for
+a proposal without making profile changes. See HOW_TO_RUN.txt for job-search
+guidance.
 
 The app does not bypass login, CAPTCHA, OTP, or other security checks and
 cannot guarantee interviews or shortlisting.

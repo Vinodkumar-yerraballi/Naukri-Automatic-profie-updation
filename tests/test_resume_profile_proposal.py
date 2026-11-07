@@ -71,6 +71,9 @@ def test_create_profile_proposal_can_be_marked_for_automatic_update():
     assert '"headline"' not in proposal_builder.ai_service.prompt
     assert '"skills"' in proposal_builder.ai_service.prompt
     assert '"employment"' in proposal_builder.ai_service.prompt
+    assert "skills explicitly associated with this employment entry" in (
+        proposal_builder.ai_service.prompt
+    )
     assert '"projects"' in proposal_builder.ai_service.prompt
 
 
@@ -124,6 +127,19 @@ def test_parse_response_accepts_json_code_fence():
     )
 
     assert proposal["skills"] == ["Python", "SQL"]
+
+
+def test_employment_skills_must_be_a_list_of_text():
+    data = valid_profile()
+    data["employment"] = [{"skills": ["Python"]}]
+
+    proposal = ResumeProfileProposal._parse_response(json.dumps(data))
+
+    assert proposal["employment"][0]["skills"] == ["Python"]
+
+    data["employment"][0]["skills"] = "Python"
+    with pytest.raises(ValueError, match="skills.*list of text"):
+        ResumeProfileProposal._parse_response(json.dumps(data))
 
 
 def test_save_writes_reviewable_proposal_atomically(tmp_path):

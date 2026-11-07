@@ -95,7 +95,11 @@ def run_instahyre_search() -> None:
         candidate_education=profile_manager.get_education(),
     )
     repository = JobRepository()
-    collector = JobCollector(evaluator=evaluator, repository=repository)
+    collector = JobCollector(
+        evaluator=evaluator,
+        repository=repository,
+        allow_unknown_experience=True,
+    )
     browser = InstahyreBrowser(headless=False)
     jobs_by_url = {}
 

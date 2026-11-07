@@ -70,6 +70,7 @@ class CandidatePlatformBrowser:
             raise ValueError(f"Unsupported resume platform: {platform}")
         self.platform = platform
         self.headless = headless
+        self.platform_config = dict(platform_config or {})
         self.pages = dict(PLATFORM_PAGES[platform])
         self.session_state_path = None
         if platform_config:
@@ -640,37 +641,243 @@ class CandidatePlatformBrowser:
             if self._save_shine_summary(data["summary"]):
                 changed.append("summary")
 
-        if sections.intersection({"skills", "employment", "total_experience"}):
-            updated_profile_fields = self._save_shine_work_profile(
-                data.get("skills", [])
-                if "skills" in sections
-                else [],
-                data.get("employment", [])
-                if "employment" in sections
-                else [],
-                data.get("total_experience")
-                if "total_experience" in sections
-                else None,
+        if "skills" in sections:
+            added_skills = self._save_shine_skills(data.get("skills", []))
+            if added_skills:
+                changed.append("skills")
+
+        if sections.intersection({"employment", "total_experience"}):
+            update_button = self.page.get_by_role(
+                "button",
+                name="Update",
+                exact=True,
             )
-            changed.extend(updated_profile_fields)
+            if update_button.count() == 1 and update_button.is_visible():
+                changed.extend(
+                    self._save_shine_work_profile(
+                        [],
+                        data.get("employment", [])
+                        if "employment" in sections
+                        else [],
+                        data.get("total_experience")
+                        if "total_experience" in sections
+                        else None,
+                    )
+                )
+            else:
+                if "employment" in sections and data.get("employment"):
+                    print(
+                        "Shine employment entries were left unchanged: the "
+                        "current Add Employment form requires job details "
+                        "that are not present in the resume proposal."
+                    )
+                if (
+                    "total_experience" in sections
+                    and data.get("total_experience")
+                ):
+                    print(
+                        "Shine total experience was left unchanged because "
+                        "the current profile editor does not expose that "
+                        "field."
+                    )
 
         return changed
+
+    def _save_shine_skills(self, skills: object) -> list[str]:
+        values = self._clean_shine_skills(skills)
+        if not values:
+            return []
+
+        experience = self.platform_config.get("skill_experience")
+        if not isinstance(experience, str) or not experience.strip():
+            raise ValueError(
+                "Shine requires an experience value for every new skill. "
+                "Set shine_profile.skill_experience in "
+                "config/job_preferences.yaml."
+            )
+        experience = experience.strip()
+
+        add_button = self.page.locator(
+            "button[class*='skills_addButton']"
+        )
+        if add_button.count() != 1:
+            raise RuntimeError(
+                "Could not identify Shine's current Add Skills control."
+            )
+
+        add_button.click(timeout=10000)
+        skill_input = self.page.get_by_placeholder(
+            "Type to search skills..."
+        )
+        try:
+            skill_input.wait_for(state="visible", timeout=10000)
+        except PlaywrightError as error:
+            raise RuntimeError(
+                "Shine did not open its current Skills dialog."
+            ) from error
+
+        modal = self.page.locator(
+            "div[class*='skillsModal_modalContainer']"
+        )
+        capacity = re.search(
+            r"(\d+)\s+more skills? to add",
+            modal.inner_text(),
+            re.IGNORECASE,
+        )
+        if capacity is None:
+            self.page.locator(
+                "button[class*='skillsModal_CloseButton']"
+            ).click(timeout=5000)
+            raise RuntimeError(
+                "Could not determine how many more skills Shine currently "
+                "allows."
+            )
+        remaining_slots = int(capacity.group(1))
+        added = []
+        skipped_for_limit = []
+        try:
+            for skill in values:
+                if len(added) >= remaining_slots:
+                    skipped_for_limit.extend(values[values.index(skill):])
+                    break
+                skill_input.fill(skill)
+                self.page.wait_for_timeout(500)
+                dropdown = self.page.locator(
+                    "div[class*='SearchableDropdown_dropdownList']"
+                )
+                rows = dropdown.locator(
+                    "div[class*='dropdownItem']"
+                )
+                exact_row = None
+                already_added = False
+                for row in rows.all():
+                    row_text = row.inner_text().strip()
+                    skill_name = row_text.splitlines()[0].strip()
+                    if self._normalize_shine_skill(skill_name) != (
+                        self._normalize_shine_skill(skill)
+                    ):
+                        continue
+                    if "added" in row_text.casefold():
+                        already_added = True
+                    else:
+                        exact_row = row
+                        break
+
+                if already_added:
+                    continue
+                if exact_row is None:
+                    print(
+                        f"Shine did not offer '{skill}' as an exact skill; "
+                        "it was skipped."
+                    )
+                    continue
+
+                exact_row.click(timeout=10000)
+                experience_control = self.page.get_by_text(
+                    "Select Experience",
+                    exact=True,
+                )
+                if experience_control.count() != 1:
+                    raise RuntimeError(
+                        "Shine did not show the skill experience selector "
+                        f"for '{skill}'."
+                    )
+                experience_control.click(timeout=10000)
+                experience_option = self.page.get_by_text(
+                    experience,
+                    exact=True,
+                )
+                if experience_option.count() != 1:
+                    raise ValueError(
+                        f"Shine does not offer '{experience}' as a skill "
+                        "experience value."
+                    )
+                experience_option.click(timeout=10000)
+
+                add_skill = self.page.locator(
+                    "button[class*='skillsModal_addBtn']"
+                )
+                if add_skill.count() != 1 or not add_skill.is_enabled():
+                    raise RuntimeError(
+                        f"Shine kept the Add control disabled for '{skill}' "
+                        "after setting its experience."
+                    )
+                add_skill.click(timeout=10000)
+                added.append(skill)
+                skill_input.fill("")
+
+            if skipped_for_limit:
+                print(
+                    "Shine's current skill limit was reached; skipped: "
+                    + ", ".join(skipped_for_limit)
+                )
+            if not added:
+                self.page.locator(
+                    "button[class*='skillsModal_CloseButton']"
+                ).click(timeout=5000)
+                return []
+
+            save_button = self.page.locator(
+                "button[class*='skillsModal_saveBtn']"
+            )
+            if save_button.count() != 1 or not save_button.is_enabled():
+                raise RuntimeError(
+                    "Shine did not enable Save after adding the selected "
+                    "skills."
+                )
+            try:
+                with self.page.expect_response(
+                    lambda response: (
+                        "skill" in urlparse(response.url).path.casefold()
+                        and response.request.method.upper()
+                        in {"POST", "PUT", "PATCH"}
+                    ),
+                    timeout=30000,
+                ) as response_info:
+                    save_button.click(timeout=10000)
+                response = response_info.value
+            except PlaywrightError as error:
+                raise RuntimeError(
+                    "Shine did not confirm saving the selected skills."
+                ) from error
+            if not 200 <= response.status < 300:
+                raise RuntimeError(
+                    "Shine rejected the skill update with HTTP "
+                    f"{response.status}."
+                )
+            return added
+        except (PlaywrightError, RuntimeError, ValueError):
+            close_button = self.page.locator(
+                "button[class*='skillsModal_CloseButton']"
+            )
+            if close_button.count() and close_button.is_visible():
+                close_button.click(timeout=5000)
+            raise
 
     def _save_shine_summary(self, summary: object) -> bool:
         if not isinstance(summary, str) or not summary.strip():
             return False
 
+        summary_text = self._shine_summary_value(summary)
+        summary_label = self.page.get_by_text(
+            "Profile Summary",
+            exact=True,
+        )
+        summary_label.wait_for(state="visible", timeout=30000)
         heading = self.page.get_by_role(
             "heading",
             name="Profile Summary",
             exact=True,
         )
-        if heading.count() != 1:
+        if heading.count() == 1:
+            section = heading.locator("xpath=..")
+        elif summary_label.count() == 1:
+            section = summary_label.locator("xpath=..")
+        else:
             raise RuntimeError(
                 "Could not identify Shine's Profile Summary section."
             )
 
-        section = heading.locator("xpath=..")
         action = None
         for role in ("button", "link"):
             for label in ("Add", "Update", "Edit"):
@@ -685,6 +892,12 @@ class CandidatePlatformBrowser:
             if action is not None:
                 break
         if action is None:
+            edit_icon = section.locator(
+                "button[class*='editIconButton_editBtn']"
+            )
+            if edit_icon.count() == 1 and edit_icon.first.is_visible():
+                action = edit_icon.first
+        if action is None:
             raise RuntimeError(
                 "Could not find Shine's Profile Summary editor."
             )
@@ -697,7 +910,7 @@ class CandidatePlatformBrowser:
             raise RuntimeError(
                 "Shine did not open the Profile Summary text editor."
             )
-        summary_field.fill(summary.strip())
+        summary_field.fill(summary_text)
 
         save_button = self.page.get_by_role(
             "button",
@@ -708,11 +921,17 @@ class CandidatePlatformBrowser:
             raise RuntimeError(
                 "Could not find Shine's Profile Summary Save button."
             )
+        if not save_button.is_enabled():
+            raise RuntimeError(
+                "Shine kept the Profile Summary Save button disabled after "
+                "the summary was shortened to its supported length."
+            )
         try:
             with self.page.expect_response(
                 lambda result: (
                     "/api/v4/candidate-summary/" in result.url
-                    and result.request.method.upper() == "PUT"
+                    and result.request.method.upper()
+                    in {"POST", "PUT", "PATCH"}
                 ),
                 timeout=30000,
             ) as response_info:
@@ -730,6 +949,20 @@ class CandidatePlatformBrowser:
             )
         return True
 
+    @staticmethod
+    def _shine_summary_value(summary: str) -> str:
+        normalized = " ".join(summary.split())
+        max_length = 240
+        if len(normalized) <= max_length:
+            return normalized
+
+        shortened = normalized[: max_length - 3]
+        if " " in shortened:
+            shortened = shortened.rsplit(" ", 1)[0]
+        if not shortened:
+            shortened = normalized[: max_length - 3]
+        return f"{shortened.rstrip(' ,;:-')}..."
+
     def _save_shine_work_profile(
         self,
         skills: object,
@@ -738,22 +971,12 @@ class CandidatePlatformBrowser:
     ) -> list[str]:
         update_button = self.page.get_by_role(
             "button",
-            name=re.compile(r"^(update|edit|add)( profile| details)?$", re.IGNORECASE),
-            exact=False,
+            name="Update",
+            exact=True,
         )
-        if update_button.count() == 0:
-            update_button = self.page.get_by_role(
-                "link",
-                name=re.compile(
-                    r"^(update|edit|add)( profile| details)?$",
-                    re.IGNORECASE,
-                ),
-                exact=False,
-            )
         if update_button.count() != 1:
             raise RuntimeError(
-                "Could not find a unique Update/Edit control for Shine's "
-                "work-profile section."
+                "Could not find Shine's unique work-profile Update button."
             )
         update_button.click(timeout=10000)
 
@@ -768,8 +991,19 @@ class CandidatePlatformBrowser:
         added_skills = []
         if skill_values:
             skill_label = self.page.locator("label[for='skill']")
-            if skill_label.count() != 1:
-                raise RuntimeError("Could not find Shine's skill editor.")
+            try:
+                skill_label.wait_for(state="visible", timeout=30000)
+            except PlaywrightError as error:
+                raise RuntimeError(
+                    "Shine did not open the skill editor after selecting "
+                    "the work-profile Update control."
+                ) from error
+            skill_label_count = skill_label.count()
+            if skill_label_count != 1:
+                raise RuntimeError(
+                    "Could not identify one Shine skill-editor label; "
+                    f"found {skill_label_count}."
+                )
             skill_input = skill_label.locator("xpath=..").locator("input")
             if skill_input.count() != 1:
                 raise RuntimeError(

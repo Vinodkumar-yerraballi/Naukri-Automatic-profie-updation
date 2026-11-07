@@ -1,8 +1,10 @@
-from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import sync_playwright
+from difflib import SequenceMatcher
 from pathlib import Path
 import re
 from urllib.parse import quote_plus, urlencode, urlparse
+
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import sync_playwright
 
 
 class NaukriBrowser:
@@ -167,13 +169,20 @@ class NaukriBrowser:
             )
 
     def update_profile_fields(self, proposal: dict) -> list[str]:
-        """Add resume-supported skills/projects and update the resume headline."""
+        """Update selected resume-supported Naukri profile sections."""
         if self.page is None:
             raise RuntimeError("Browser is not started.")
 
         data = proposal.get("data")
         if not isinstance(data, dict):
             raise ValueError("The profile proposal has no valid data object.")
+        proposed_sections = proposal.get(
+            "sections",
+            ["headline", "skills", "projects"],
+        )
+        if not isinstance(proposed_sections, list):
+            raise ValueError("The profile proposal sections must be a list.")
+        sections = set(proposed_sections)
 
         self.page.goto(
             "https://www.naukri.com/mnjuser/profile",
@@ -192,14 +201,20 @@ class NaukriBrowser:
                 "`python main.py --setup-naukri-session` first."
             )
 
-        self._open_naukri_section("Projects")
         changed = []
         failures = []
         for section, updater, value in (
             ("headline", self._update_naukri_headline, data.get("headline")),
             ("skills", self._update_naukri_skills, data.get("skills", [])),
+            (
+                "employment",
+                self._update_naukri_employment,
+                data.get("employment", []),
+            ),
             ("projects", self._update_naukri_projects, data.get("projects", [])),
         ):
+            if section not in sections:
+                continue
             try:
                 if updater(value):
                     changed.append(section)
@@ -213,6 +228,385 @@ class NaukriBrowser:
                 + "; ".join(failures)
             )
         return changed
+
+    def _update_naukri_employment(self, employment: object) -> bool:
+        if not isinstance(employment, list):
+            raise ValueError("Proposed employment must be a list.")
+        entries = [
+            item
+            for item in employment
+            if isinstance(item, dict)
+            and isinstance(item.get("title"), str)
+            and item["title"].strip()
+            and isinstance(item.get("company"), str)
+            and item["company"].strip()
+        ]
+        if not entries:
+            return False
+
+        self._open_naukri_section("Employment")
+        card = self._naukri_section_card("Employment")
+        existing_rows = card.locator(".row.emp-list")
+        changed = False
+        for entry in entries:
+            title = entry["title"].strip()
+            company = entry["company"].strip()
+            start_date = entry.get("start_date")
+            matching_row = next(
+                (
+                    existing_rows.nth(index)
+                    for index in range(existing_rows.count())
+                    if self._naukri_employment_matches(
+                        title,
+                        company,
+                        start_date,
+                        existing_rows.nth(index),
+                    )
+                ),
+                None,
+            )
+            if matching_row is not None:
+                continue
+
+            start_year, start_month = self._naukri_date_parts(start_date)
+            end_year, end_month = self._naukri_date_parts(
+                entry.get("end_date")
+            )
+            role_skills = self._clean_naukri_skills(entry.get("skills"))
+            employment_type = entry.get("employment_type")
+            is_current = entry.get("is_current")
+            if (
+                not start_year
+                or not start_month
+                or not isinstance(is_current, bool)
+                or not isinstance(employment_type, str)
+                or not employment_type.strip()
+                or not role_skills
+                or (not is_current and (not end_year or not end_month))
+                or is_current
+            ):
+                print(
+                    "Naukri left an unmatched employment entry unchanged "
+                    f"for '{title}' at '{company}': the form requires "
+                    "resume-supported dates, employment type, role skills, "
+                    "current status, and a notice period for a current role."
+                )
+                continue
+
+            add_button = card.locator(".add")
+            if add_button.count() != 1:
+                raise RuntimeError(
+                    "Naukri's Add employment control could not be identified."
+                )
+            add_button.click(timeout=10000)
+
+            title_field = self.page.locator("#designationSugg")
+            company_field = self.page.locator("#companySugg")
+            if title_field.count() != 1 or company_field.count() != 1:
+                self._close_naukri_editor()
+                raise RuntimeError(
+                    "Naukri's employment title or company field was not found."
+                )
+
+            try:
+                title_field.fill(title)
+                company_field.fill(company)
+
+                description = entry.get("description")
+                description_field = self.page.locator("#jobDescription")
+                if (
+                    isinstance(description, str)
+                    and description.strip()
+                    and description_field.count() == 1
+                ):
+                    description_field.fill(description.strip())
+
+                self._select_naukri_date(
+                    "#startedYearFor",
+                    start_year,
+                )
+                self._select_naukri_date(
+                    "#startedMonthFor",
+                    start_month,
+                )
+
+                radio_id = "yes" if is_current else "no"
+                radio_label = self.page.locator(f"label[for='{radio_id}']")
+                radio = self.page.locator(f"#{radio_id}")
+                if radio_label.count() != 1 or radio.count() != 1:
+                    raise RuntimeError(
+                        "Naukri's current-employment control was not found."
+                    )
+                radio_label.click(timeout=5000)
+                if not radio.is_checked():
+                    raise RuntimeError(
+                        "Naukri did not apply the proposed current-employment "
+                        "status."
+                    )
+
+                if not is_current:
+                    self._select_naukri_date(
+                        "#workedTillYearFor",
+                        end_year,
+                    )
+                    self._select_naukri_date(
+                        "#workedTillMonthFor",
+                        end_month,
+                    )
+
+                type_selectors = {
+                    "full-time": "#expType_Full-time_F",
+                    "full time": "#expType_Full-time_F",
+                    "internship": "#expType_Internship_I",
+                }
+                type_selector = type_selectors.get(
+                    employment_type.strip().casefold()
+                )
+                type_control = (
+                    self.page.locator(type_selector)
+                    if type_selector
+                    else self.page.locator("#unsupportedEmploymentType")
+                )
+                if type_control.count() != 1:
+                    raise RuntimeError(
+                        "Naukri does not expose the proposed employment type "
+                        f"'{employment_type}'."
+                    )
+                type_control.check(timeout=5000)
+
+                self._add_naukri_employment_skills(
+                    self.page.locator("#keySkillSugg"),
+                    role_skills,
+                )
+
+                save_button = self.page.get_by_role(
+                    "button",
+                    name="Save",
+                    exact=True,
+                )
+                if save_button.count() != 1 or not save_button.is_enabled():
+                    raise RuntimeError(
+                        "Naukri kept the employment Save button disabled; "
+                        "no work-history record was saved."
+                    )
+                self._save_naukri_editor("#companySugg")
+            except (PlaywrightError, RuntimeError, ValueError):
+                self._close_naukri_editor()
+                raise
+
+            self.page.wait_for_timeout(300)
+            updated_rows = card.locator(".row.emp-list")
+            if not any(
+                self._naukri_employment_matches(
+                    title,
+                    company,
+                    start_date,
+                    updated_rows.nth(index),
+                )
+                for index in range(updated_rows.count())
+            ):
+                raise RuntimeError(
+                    "Naukri did not confirm the employment record for "
+                    f"'{title}' at '{company}'."
+                )
+            changed = True
+        return changed
+
+    @staticmethod
+    def _clean_naukri_skills(skills: object) -> list[str]:
+        if not isinstance(skills, list):
+            return []
+        return list(
+            dict.fromkeys(
+                skill.strip()
+                for skill in skills
+                if isinstance(skill, str) and skill.strip()
+            )
+        )
+
+    @staticmethod
+    def _normalize_naukri_employment_text(value: str) -> str:
+        value = re.sub(r"\([^)]*\)|\[[^]]*\]", " ", value.casefold())
+        return " ".join(re.sub(r"[^a-z0-9]+", " ", value).split())
+
+    @classmethod
+    def _naukri_employment_matches(
+        cls,
+        title: str,
+        company: str,
+        start_date: object,
+        existing_row,
+    ) -> bool:
+        existing_title = existing_row.locator(".emp-desg")
+        existing_company = existing_row.locator(".emp-org")
+        existing_dates = existing_row.locator(".experienceType")
+        if (
+            existing_title.count() != 1
+            or existing_company.count() != 1
+            or existing_dates.count() != 1
+        ):
+            return False
+
+        title_value = cls._normalize_naukri_employment_text(title)
+        existing_title_value = cls._normalize_naukri_employment_text(
+            existing_title.inner_text()
+        )
+        company_value = cls._normalize_naukri_employment_text(company)
+        existing_company_value = cls._normalize_naukri_employment_text(
+            existing_company.inner_text()
+        )
+        if (
+            not title_value
+            or not existing_title_value
+            or not company_value
+            or not existing_company_value
+            or SequenceMatcher(
+                None,
+                title_value,
+                existing_title_value,
+            ).ratio()
+            < 0.65
+            or SequenceMatcher(
+                None,
+                company_value,
+                existing_company_value,
+            ).ratio()
+            < 0.85
+        ):
+            return False
+
+        proposed_year, proposed_month = cls._naukri_date_parts(start_date)
+        existing_year, existing_month = cls._naukri_date_parts(
+            existing_dates.inner_text()
+        )
+        if not proposed_year or not existing_year:
+            return title_value == existing_title_value
+        return proposed_year == existing_year and (
+            not proposed_month
+            or not existing_month
+            or proposed_month.casefold() == existing_month.casefold()
+        )
+
+    def _select_naukri_date(
+        self,
+        field_selector: str,
+        value: str | None,
+    ) -> None:
+        if not value:
+            raise ValueError(
+                f"Naukri's date value for {field_selector} is missing."
+            )
+        field = self.page.locator(field_selector)
+        if field.count() != 1:
+            raise RuntimeError(
+                f"Naukri's date field {field_selector} was not found."
+            )
+        listbox_id = field.get_attribute("aria-controls")
+        if not listbox_id:
+            raise RuntimeError(
+                f"Naukri's date field {field_selector} has no option list."
+            )
+        field.click(timeout=5000)
+        options = self.page.locator(f"#{listbox_id} li")
+        selected_option = None
+        for option in options.all():
+            option_text = option.inner_text().strip()
+            if option_text.casefold() == value.casefold():
+                selected_option = option
+                break
+        if selected_option is None:
+            raise RuntimeError(
+                f"Naukri did not offer '{value}' for {field_selector}."
+            )
+        selected_option.click(timeout=5000)
+        if field.input_value().strip().casefold() != value.casefold():
+            raise RuntimeError(
+                f"Naukri did not select '{value}' for {field_selector}."
+            )
+
+    def _type_naukri_suggestion_query(self, field, value: str) -> None:
+        maxlength = field.get_attribute("maxlength")
+        try:
+            input_limit = int(maxlength) if maxlength else 5
+        except ValueError:
+            input_limit = 5
+        query = value.strip()[: max(1, min(5, input_limit))].rstrip()
+        if not query:
+            return
+        field.fill("")
+        field.press_sequentially(query, delay=35)
+        self.page.wait_for_timeout(500)
+
+    def _add_naukri_employment_skills(
+        self,
+        field,
+        skills: list[str],
+    ) -> None:
+        if field.count() != 1:
+            raise RuntimeError(
+                "Naukri's employment key-skills field was not found."
+            )
+        chips = field.locator(
+            "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), "
+            "' '), ' sWrap ')][1]"
+        ).locator(".chipsContainer .chip")
+        added = []
+        for skill in skills:
+            normalized_skill = self._normalize_naukri_skill(skill)
+            current = {
+                self._normalize_naukri_skill(text)
+                for text in chips.all_inner_texts()
+                if text.strip()
+            }
+            if normalized_skill in current:
+                continue
+            self._type_naukri_suggestion_query(field, skill)
+            option = self._naukri_exact_suggestion(skill, field)
+            if option is None:
+                print(
+                    f"Naukri did not offer an exact role-skill match for "
+                    f"'{skill}'; it was skipped."
+                )
+                continue
+            option.click(timeout=10000)
+            self.page.wait_for_timeout(200)
+            current = {
+                self._normalize_naukri_skill(text)
+                for text in chips.all_inner_texts()
+                if text.strip()
+            }
+            if normalized_skill not in current:
+                raise RuntimeError(
+                    f"Naukri did not add the employment skill '{skill}'."
+                )
+            added.append(skill)
+        if not added and not any(
+            self._normalize_naukri_skill(text) in {
+                self._normalize_naukri_skill(skill) for skill in skills
+            }
+            for text in chips.all_inner_texts()
+        ):
+            raise RuntimeError(
+                "Naukri requires at least one exact, resume-supported "
+                "employment skill; no skill was selected."
+            )
+
+    @staticmethod
+    def _naukri_date_parts(value: object) -> tuple[str | None, str | None]:
+        if not isinstance(value, str):
+            return None, None
+        year_match = re.search(r"\b(?:19|20)\d{2}\b", value)
+        if not year_match:
+            return None, None
+        month_match = re.search(
+            r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|"
+            r"may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|"
+            r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+            value,
+            re.IGNORECASE,
+        )
+        month = month_match.group(1).title() if month_match else None
+        return year_match.group(), month
 
     def _open_naukri_section(self, section: str) -> None:
         quick_link = self.page.locator("ul.collection li").filter(
@@ -243,11 +637,23 @@ class NaukriBrowser:
 
     def _open_naukri_editor(self, aria_label: str):
         edit_button = self.page.get_by_role("button", name=aria_label)
-        if edit_button.count() != 1:
+        try:
+            edit_button.first.wait_for(state="visible", timeout=10000)
+        except PlaywrightError as error:
             raise RuntimeError(
                 f"Could not identify Naukri's '{aria_label}' editor."
+            ) from error
+        visible_buttons = [
+            edit_button.nth(index)
+            for index in range(edit_button.count())
+            if edit_button.nth(index).is_visible()
+        ]
+        if len(visible_buttons) != 1:
+            raise RuntimeError(
+                f"Expected one visible Naukri '{aria_label}' editor, found "
+                f"{len(visible_buttons)}."
             )
-        edit_button.click(timeout=10000)
+        visible_buttons[0].click(timeout=10000)
         self.page.wait_for_timeout(300)
         return self.page
 
@@ -341,20 +747,21 @@ class NaukriBrowser:
             for text in self.page.locator(".chipsContainer .chip").all_inner_texts()
             if text.strip()
         }
-        added = False
+        added_skills = []
+        skipped = []
         try:
             for skill in values:
                 normalized_skill = self._normalize_naukri_skill(skill)
                 if normalized_skill in existing:
                     continue
-                field.fill(skill)
-                self.page.wait_for_timeout(500)
-                exact_option = self._naukri_exact_suggestion(skill)
+                self._type_naukri_suggestion_query(field, skill)
+                exact_option = self._naukri_exact_suggestion(skill, field)
                 if exact_option is None:
                     print(
                         f"Naukri did not offer an exact key-skill match for "
                         f"'{skill}'; it was skipped."
                     )
+                    skipped.append(skill)
                     continue
                 exact_option.click(timeout=10000)
                 self.page.wait_for_timeout(200)
@@ -366,26 +773,52 @@ class NaukriBrowser:
                     if text.strip()
                 }
                 if normalized_skill not in current_skills:
-                    raise RuntimeError(
-                        f"Naukri did not add the selected key skill "
-                        f"'{skill}'."
+                    print(
+                        f"Naukri did not stage the exact key skill "
+                        f"'{skill}'; it was skipped."
                     )
+                    skipped.append(skill)
+                    continue
                 existing = current_skills
-                added = True
-            if added:
+                added_skills.append(skill)
+            if added_skills:
                 self._save_naukri_editor("#keySkillSugg")
             else:
                 self._close_naukri_editor()
-            return added
         except (PlaywrightError, RuntimeError, ValueError):
             self._close_naukri_editor()
             raise
+        if skipped:
+            save_detail = (
+                f"Saved {len(added_skills)} other skill(s). "
+                if added_skills
+                else "No new skills were saved. "
+            )
+            raise RuntimeError(
+                save_detail
+                + "Naukri could not add these resume-supported key skills "
+                "because it did not offer or accept exact suggestions: "
+                + ", ".join(skipped)
+                + ". Existing skills were preserved; check Naukri's "
+                "skill limit or add these skills manually."
+            )
+        return bool(added_skills)
 
-    def _naukri_exact_suggestion(self, value: str):
+    def _naukri_exact_suggestion(self, value: str, field=None):
         normalized_value = self._normalize_naukri_skill(value)
-        suggestions = self.page.locator(
-            "li, [role='option'], .sWrap .chip, .suggestor-box li"
+        controls_id = (
+            field.get_attribute("aria-controls")
+            if field is not None
+            else None
         )
+        if controls_id:
+            suggestions = self.page.locator(
+                f"#{controls_id} li, #{controls_id} [role='option']"
+            )
+        else:
+            suggestions = self.page.locator(
+                "li, [role='option'], .sWrap .chip, .suggestor-box li"
+            )
         for suggestion in suggestions.all():
             if (
                 suggestion.is_visible()
@@ -398,7 +831,12 @@ class NaukriBrowser:
     @staticmethod
     def _normalize_naukri_skill(value: str) -> str:
         normalized = re.sub(r"\s+", " ", value).strip()
-        normalized = re.sub(r"\s*[×✕]\s*$", "", normalized)
+        normalized = re.sub(
+            r"(?:\s*(?:×|✕|Cross))+$",
+            "",
+            normalized,
+            flags=re.IGNORECASE,
+        )
         return normalized.casefold()
 
     def _update_naukri_projects(self, projects: object) -> bool:
@@ -414,6 +852,7 @@ class NaukriBrowser:
         if not entries:
             return False
 
+        self._open_naukri_section("Projects")
         card = self._naukri_section_card("Projects")
         existing = {
             title.strip().casefold()

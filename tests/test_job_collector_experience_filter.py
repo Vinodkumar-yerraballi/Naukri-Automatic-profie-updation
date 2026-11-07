@@ -73,3 +73,40 @@ def test_matching_experience_continues_to_evaluation():
     assert result["inserted"] is True
     evaluator.evaluate.assert_called_once()
     repository.add_job.assert_called_once()
+
+
+def test_unknown_experience_can_be_kept_for_manual_review():
+    evaluator = Mock()
+    repository = Mock()
+    evaluator.experience_matcher.get_match_result.return_value = {
+        "job_min_experience": None,
+        "job_max_experience": None,
+        "candidate_min_experience": 0,
+        "candidate_max_experience": 2,
+        "match": False,
+    }
+    evaluator.evaluate.return_value = {"final_score": 50}
+    repository.job_exists.return_value = False
+    repository.add_job.return_value = True
+    collector = JobCollector(
+        evaluator,
+        repository,
+        allow_unknown_experience=True,
+    )
+
+    with patch("src.ingestion.job_collector.JDExtractor") as extractor_class:
+        extractor_class.return_value.extract_all.return_value = {
+            "title": "Data Analyst",
+            "experience": "",
+            "skills": ["SQL"],
+        }
+        result = collector.process_job(
+            job_description="Test description",
+            job_url="https://example.com/job/unknown-experience",
+            job_metadata={"title": "Data Analyst", "experience": ""},
+        )
+
+    assert result["skipped"] is False
+    assert result["inserted"] is True
+    evaluator.evaluate.assert_called_once()
+    repository.add_job.assert_called_once()

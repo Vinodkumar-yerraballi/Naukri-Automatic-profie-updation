@@ -83,7 +83,20 @@ class ResumeProfileProposal:
                     "start_date": "string or null",
                     "end_date": "string or null",
                     "is_current": "boolean or null",
+                    "employment_type": (
+                        "string or null; include only when explicitly stated"
+                    ),
+                    "department": (
+                        "string or null; include only when explicitly stated"
+                    ),
+                    "industry": (
+                        "string or null; include only when explicitly stated"
+                    ),
                     "description": "string or null",
+                    "skills": [
+                        "skills explicitly associated with this employment "
+                        "entry in the resume"
+                    ],
                 }
             ],
             "education": [
@@ -190,5 +203,19 @@ class ResumeProfileProposal:
         for key in ("employment", "education", "projects", "certifications"):
             if any(not isinstance(item, dict) for item in data[key]):
                 raise ValueError(f"Each '{key}' entry must be an object.")
+        for entry in data["employment"]:
+            for field in ("employment_type", "department", "industry"):
+                value = entry.get(field)
+                if value is not None and not isinstance(value, str):
+                    raise ValueError(
+                        f"Employment field '{field}' must be text or null."
+                    )
+            skills = entry.get("skills", [])
+            if not isinstance(skills, list) or any(
+                not isinstance(skill, str) for skill in skills
+            ):
+                raise ValueError(
+                    "Employment field 'skills' must be a list of text."
+                )
 
         return data

@@ -33,7 +33,13 @@ def test_instahyre_search_command_stores_jobs_without_applying(monkeypatch):
         pass
 
     class JobCollector:
-        def __init__(self, evaluator, repository):
+        def __init__(
+            self,
+            evaluator,
+            repository,
+            allow_unknown_experience=False,
+        ):
+            assert allow_unknown_experience is True
             self.evaluator = evaluator
             self.repository = repository
             self.processed = []

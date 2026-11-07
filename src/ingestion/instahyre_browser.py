@@ -13,6 +13,7 @@ class InstahyreBrowser:
         ".selectize-dropdown-content [data-selectable], "
         "[role='option']"
     )
+    LOCATION_ALIASES = {"remote": "Work From Home"}
 
     def __init__(self, headless: bool = False):
         self.headless = headless
@@ -100,7 +101,14 @@ class InstahyreBrowser:
                 f"({selector})."
             )
 
-        field.fill(value)
+        filter_value = value
+        if field_name.casefold() == "location":
+            filter_value = self.LOCATION_ALIASES.get(
+                value.casefold(),
+                value,
+            )
+
+        field.fill(filter_value)
         self.page.wait_for_timeout(500)
         matching_options = []
         option_texts = []
@@ -112,15 +120,23 @@ class InstahyreBrowser:
             text = " ".join(option.inner_text().split())
             if text and text not in option_texts:
                 option_texts.append(text)
-            if text.casefold() == value.casefold() or text.casefold().startswith(
-                value.casefold()
-            ):
+            matches_exactly = text.casefold() == filter_value.casefold()
+            starts_with_filter = text.casefold().startswith(
+                filter_value.casefold()
+            )
+            if matches_exactly or starts_with_filter:
                 matching_options.append(option)
 
         if not matching_options:
             examples = ", ".join(option_texts[:5]) or "none visible"
+            requested_value = (
+                f"'{filter_value}' (mapped from '{value}')"
+                if filter_value != value
+                else f"'{value}'"
+            )
             raise RuntimeError(
-                f"Instahyre did not offer '{value}' as a {field_name} filter. "
+                f"Instahyre did not offer {requested_value} as a "
+                f"{field_name} filter. "
                 f"Visible options: {examples}."
             )
 
