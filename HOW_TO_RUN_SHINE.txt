@@ -9,9 +9,10 @@ the project's .venv virtual environment.
    .venv\Scripts\python.exe main.py --setup-shine-session
 
    The command opens Shine's sign-in page. Complete login and any OTP/checks,
-   then wait until the resume-upload page appears in the browser before
-   pressing Enter in PowerShell. The command verifies that Shine did not
-   redirect back to login. Cookies and session storage are saved in
+   then wait until your My Profile page appears and its header no longer
+   shows Login before pressing Enter in PowerShell. The resume-upload page
+   can load without an authenticated session, so it is not sufficient to
+   verify sign-in. Cookies and session storage are saved in
    data\shine_session_state.json to keep the sign-in available to later
    commands. Treat that file and data\shine_browser_profile as sensitive.
 

@@ -182,7 +182,7 @@ wellfound_profile:
 
   login_url: https://wellfound.com/login
 
-  profile_url: https://wellfound.com/profile/edit
+  profile_url: https://wellfound.com/profile/edit/resume
 
   browser_profile_directory: data/wellfound_browser_profile
 

@@ -58,12 +58,20 @@ class FakePage:
         return FakeLocator(self, selector)
 
     def get_by_role(self, role, name=None, exact=False):
-        assert role == "button"
         page = self
 
         class FakeRoleLocator:
+            @property
+            def first(self):
+                return self
+
             def count(self):
+                if name in {"Login", "Register/Login"}:
+                    return getattr(page, "login_control_count", 0)
                 return getattr(page, "profile_update_button_count", 0)
+
+            def is_visible(self):
+                return self.count() > 0
 
             def wait_for(self, state, timeout):
                 assert state == "visible"
@@ -358,9 +366,48 @@ def test_platform_browser_accepts_configured_site_routes():
     }
 
 
-def test_shine_session_verification_requires_resume_upload_page(tmp_path):
+def test_wellfound_uses_resume_editor_route():
+    browser = CandidatePlatformBrowser("wellfound")
+
+    assert browser.pages["profile"] == (
+        "https://wellfound.com/profile/edit/resume"
+    )
+
+
+def test_wellfound_resume_upload_accepts_visible_existing_resume(tmp_path):
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"candidate resume")
     page = FakePage()
-    page.url = "https://www.shine.com/myshine/resume/upload"
+    page.url = "https://wellfound.com/profile/edit/resume"
+    page.body = f"Resume / CV\n{resume.name}\nUpload new file"
+
+    class ExistingResumeLocator:
+        first = None
+
+        def __init__(self):
+            self.first = self
+
+        def count(self):
+            return int(resume.name in page.body)
+
+        def is_visible(self):
+            return resume.name in page.body
+
+    page.get_by_text = lambda text, exact: ExistingResumeLocator()
+    browser = CandidatePlatformBrowser("wellfound")
+    browser.page = page
+
+    browser.update_profile_resume(resume)
+
+    assert page.goto_arguments[0] == (
+        "https://wellfound.com/profile/edit/resume",
+    )
+    assert not hasattr(page, "uploaded_file")
+
+
+def test_shine_session_verification_requires_signed_in_profile_page(tmp_path):
+    page = FakePage()
+    page.url = "https://www.shine.com/myshine/myprofile"
     browser = CandidatePlatformBrowser("shine")
     browser.page = page
     browser.context = FakeSessionContext()
@@ -369,9 +416,20 @@ def test_shine_session_verification_requires_resume_upload_page(tmp_path):
     browser.verify_shine_session()
 
     assert page.goto_arguments[0] == (
-        "https://www.shine.com/myshine/resume/upload",
+        "https://www.shine.com/myshine/myprofile",
     )
     assert browser.session_state_path.is_file()
+
+
+def test_shine_session_verification_rejects_public_profile_with_login_button():
+    page = FakePage()
+    page.url = "https://www.shine.com/myshine/myprofile"
+    page.login_control_count = 1
+    browser = CandidatePlatformBrowser("shine")
+    browser.page = page
+
+    with pytest.raises(RuntimeError, match="public profile page"):
+        browser.verify_shine_session()
 
 
 def test_shine_session_save_retries_navigation_during_storage_capture(
@@ -448,10 +506,9 @@ def test_shine_session_verification_rejects_login_redirect():
         browser.verify_shine_session()
 
 
-def test_shine_profile_preparation_opens_profile_editor():
+def test_shine_profile_preparation_does_not_require_a_page_wide_button():
     page = FakePage()
     page.url = "https://www.shine.com/myshine/myprofile"
-    page.reveal_update_button_after_wait = True
     browser = CandidatePlatformBrowser("shine")
     browser.page = page
 
@@ -461,8 +518,6 @@ def test_shine_profile_preparation_opens_profile_editor():
         "https://www.shine.com/myshine/myprofile",
     )
     assert page.goto_arguments[1]["wait_until"] == "domcontentloaded"
-    assert page.profile_update_wait_timeout == 30000
-    assert page.profile_update_button_count == 1
 
 
 def test_shine_profile_preparation_rejects_login_redirect():
@@ -478,16 +533,27 @@ def test_shine_profile_preparation_rejects_login_redirect():
         browser.prepare_profile_update()
 
 
-def test_shine_profile_preparation_reports_editor_load_timeout():
+def test_shine_profile_preparation_accepts_profile_without_action_buttons():
     page = FakePage()
     page.url = "https://www.shine.com/myshine/myprofile"
     browser = CandidatePlatformBrowser("shine")
     browser.page = page
 
-    with pytest.raises(
-        RuntimeError,
-        match="Update button was not visible after 30 seconds",
-    ):
+    browser.prepare_profile_update()
+
+    assert page.goto_arguments[0] == (
+        "https://www.shine.com/myshine/myprofile",
+    )
+
+
+def test_shine_profile_preparation_rejects_public_profile_with_login_button():
+    page = FakePage()
+    page.url = "https://www.shine.com/myshine/myprofile"
+    page.login_control_count = 1
+    browser = CandidatePlatformBrowser("shine")
+    browser.page = page
+
+    with pytest.raises(RuntimeError, match="public profile page"):
         browser.prepare_profile_update()
 
 
@@ -825,6 +891,89 @@ def test_shine_skills_are_deduplicated_without_truncating_names():
     assert CandidatePlatformBrowser._normalize_shine_skill("Linux ×") == (
         "linux"
     )
+
+
+def test_shine_summary_editor_uses_action_inside_summary_section():
+    class Response:
+        url = "https://www.shine.com/api/v4/candidate-summary/123/"
+        status = 200
+        request = type("Request", (), {"method": "PUT"})()
+
+    class ResponseExpectation:
+        value = Response()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class Locator:
+        first = None
+
+        def __init__(self, count=0):
+            self.result_count = count
+            self.first = self
+            self.clicked = False
+            self.filled = None
+
+        def count(self):
+            return self.result_count
+
+        def is_visible(self):
+            return True
+
+        def click(self, timeout):
+            self.clicked = True
+
+        def fill(self, value):
+            self.filled = value
+
+        def locator(self, selector):
+            assert selector == "xpath=.."
+            return section
+
+        def get_by_role(self, role, name, exact):
+            if role == "button" and name == "Add":
+                return add_action
+            if role == "button" and name == "Save":
+                return save_action
+            return Locator()
+
+    heading = Locator(count=1)
+    section = Locator(count=1)
+    add_action = Locator(count=1)
+    save_action = Locator(count=1)
+    summary_field = Locator(count=1)
+
+    class Page:
+        url = "https://www.shine.com/myshine/myprofile"
+
+        def get_by_role(self, role, name, exact):
+            if role == "heading" and name == "Profile Summary":
+                return heading
+            if role == "button" and name == "Save":
+                return save_action
+            return Locator()
+
+        def locator(self, selector):
+            assert selector == (
+                "textarea[placeholder='Type your profile summary here...']"
+            )
+            return summary_field
+
+        def expect_response(self, predicate, timeout):
+            assert timeout == 30000
+            assert predicate(Response())
+            return ResponseExpectation()
+
+    browser = CandidatePlatformBrowser("shine")
+    browser.page = Page()
+
+    assert browser._save_shine_summary("Accurate profile summary") is True
+    assert add_action.clicked is True
+    assert summary_field.filled == "Accurate profile summary"
+    assert save_action.clicked is True
 
 
 def test_shine_total_experience_only_accepts_supported_year_values():

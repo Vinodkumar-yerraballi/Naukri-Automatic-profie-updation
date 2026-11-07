@@ -38,7 +38,7 @@ PLATFORM_PAGES = {
     },
     "wellfound": {
         "login": "https://wellfound.com/login",
-        "profile": "https://wellfound.com/users/edit",
+        "profile": "https://wellfound.com/profile/edit/resume",
     },
 }
 PROFILE_STATE_PLATFORMS = {"foundit", "naukri", "shine"}
@@ -129,7 +129,7 @@ class CandidatePlatformBrowser:
             raise RuntimeError("Browser is not started.")
 
         response = self.page.goto(
-            self.pages["profile"],
+            self.pages["profile_edit"],
             wait_until="domcontentloaded",
             timeout=60000,
         )
@@ -140,49 +140,41 @@ class CandidatePlatformBrowser:
         if (
             (response_status is not None and response_status >= 400)
             or "/myshine/login" in current_url
-            or self.page.locator("#myfile").count() != 1
         ):
             raise RuntimeError(
                 "Shine sign-in was not verified. In the opened browser, "
-                "complete login until the resume-upload page appears, then "
+                "complete login until your profile page appears, then "
                 "run `python main.py --setup-shine-session` again."
             )
+        self._require_shine_signed_in()
         self._save_shine_session()
 
-    def _wait_for_shine_action_button(self, *button_names: str) -> Locator:
-        for button_name in button_names:
-            button = self.page.get_by_role(
-                "button",
-                name=button_name,
-                exact=False,
+    def _require_shine_signed_in(self) -> None:
+        if self.page is None:
+            raise RuntimeError("Browser is not started.")
+        if "/myshine/login" in self.page.url.lower():
+            raise RuntimeError(
+                "Shine is not signed in. Run "
+                "`python main.py --setup-shine-session`, complete sign-in, "
+                "and verify that the My Profile page no longer shows Login."
             )
-            try:
-                button.wait_for(
-                    state="visible",
-                    timeout=30000,
+
+        for role in ("button", "link"):
+            for label in ("Login", "Register/Login"):
+                controls = self.page.get_by_role(
+                    role,
+                    name=label,
+                    exact=True,
                 )
-                return button
-            except PlaywrightError:
-                continue
-        fallback_button = self.page.locator(
-            "button, [role='button'], input[type='button'], "
-            "input[type='submit']"
-        )
-        if fallback_button.count() > 0:
-            try:
-                fallback_button.first.wait_for(
-                    state="visible",
-                    timeout=30000,
-                )
-                return fallback_button.first
-            except PlaywrightError:
-                pass
-        current_path = urlparse(self.page.url).path
-        raise RuntimeError(
-            "Shine's profile editor did not finish loading: its Update "
-            "button was not visible after 30 seconds "
-            f"(current page: {current_path or 'unknown'})."
-        )
+                if controls.count() and controls.first.is_visible():
+                    raise RuntimeError(
+                        "Shine opened the public profile page, which still "
+                        "shows a Login control. The saved browser session is "
+                        "not signed in. Run `python main.py "
+                        "--setup-shine-session`, finish sign-in, and wait "
+                        "until the My Profile page no longer shows Login "
+                        "before pressing Enter."
+                    )
 
     def prepare_profile_update(self) -> None:
         if self.platform != "shine":
@@ -211,27 +203,7 @@ class CandidatePlatformBrowser:
                 "browser, then run `python main.py --setup-shine-session` "
                 "before retrying."
             )
-        try:
-            self._wait_for_shine_action_button(
-                "Update",
-                "Edit",
-                "Save",
-                "Submit",
-                "Add",
-            )
-        except PlaywrightError as error:
-            current_path = urlparse(self.page.url).path
-            if "/myshine/login" in self.page.url.lower():
-                raise RuntimeError(
-                    "Shine redirected to sign-in while the profile editor "
-                    "was loading. Run `python main.py "
-                    "--setup-shine-session` and complete sign-in."
-                ) from error
-            raise RuntimeError(
-                "Shine's profile editor did not finish loading: its Update "
-                "button was not visible after 30 seconds "
-                f"(current page: {current_path or 'unknown'})."
-            ) from error
+        self._require_shine_signed_in()
 
     def _restore_shine_session(self) -> None:
         if self.session_state_path is None or not self.session_state_path.is_file():
@@ -443,6 +415,10 @@ class CandidatePlatformBrowser:
             self._upload_shine_resume(resume)
             return
 
+        if self.platform == "wellfound":
+            self._upload_wellfound_resume(resume)
+            return
+
         upload_control = self._resume_upload_control()
         if upload_control.count() == 0:
             upload_action = self.page.get_by_text(
@@ -490,6 +466,42 @@ class CandidatePlatformBrowser:
                 f"{self.platform.title()} did not confirm the resume upload. "
                 "Check the profile manually before retrying."
             )
+
+    def _upload_wellfound_resume(self, resume: Path) -> None:
+        current_resume = self.page.get_by_text(resume.name, exact=True)
+        if current_resume.count() and current_resume.first.is_visible():
+            return
+
+        upload_control = self._resume_upload_control()
+        if upload_control.count() != 1:
+            raise RuntimeError(
+                "Could not identify Wellfound's resume file input on the "
+                "Resume / CV page. No file was uploaded."
+            )
+
+        upload_control.first.set_input_files(str(resume))
+        uploaded_resume = self.page.get_by_text(resume.name, exact=True)
+        try:
+            uploaded_resume.wait_for(state="visible", timeout=30000)
+        except PlaywrightError as error:
+            validation_messages = [
+                message.strip()
+                for message in self.page.locator(
+                    "[role='alert'], [aria-live='assertive'], "
+                    "[class*='error' i]"
+                ).all_inner_texts()
+                if message.strip()
+            ]
+            detail = (
+                " Page message: " + "; ".join(validation_messages[:3])
+                if validation_messages
+                else ""
+            )
+            raise RuntimeError(
+                "Wellfound did not show the selected resume filename after "
+                "upload. Check the Resume / CV page manually before "
+                f"retrying.{detail}"
+            ) from error
 
     def _upload_shine_resume(self, resume: Path) -> None:
         if resume.stat().st_size > 5 * 1024 * 1024:
@@ -659,20 +671,20 @@ class CandidatePlatformBrowser:
             )
 
         section = heading.locator("xpath=..")
-        action = self._wait_for_shine_action_button(
-            "Add",
-            "Update",
-            "Edit",
-            "Save",
-            "Submit",
-        )
-        if action.count() != 1:
-            action = section.get_by_role(
-                "button",
-                name=re.compile(r"^(add|update|edit|save|submit)$", re.IGNORECASE),
-                exact=False,
-            )
-        if action.count() != 1:
+        action = None
+        for role in ("button", "link"):
+            for label in ("Add", "Update", "Edit"):
+                candidate = section.get_by_role(
+                    role,
+                    name=label,
+                    exact=True,
+                )
+                if candidate.count() == 1 and candidate.first.is_visible():
+                    action = candidate.first
+                    break
+            if action is not None:
+                break
+        if action is None:
             raise RuntimeError(
                 "Could not find Shine's Profile Summary editor."
             )
@@ -724,28 +736,24 @@ class CandidatePlatformBrowser:
         employment: object,
         total_experience: object,
     ) -> list[str]:
-        update_button = self._wait_for_shine_action_button(
-            "Update",
-            "Edit",
-            "Save",
-            "Submit",
-            "Add",
+        update_button = self.page.get_by_role(
+            "button",
+            name=re.compile(r"^(update|edit|add)( profile| details)?$", re.IGNORECASE),
+            exact=False,
         )
-        if update_button.count() != 1:
-            try:
-                update_button = self.page.get_by_role(
-                    "button",
-                    name="Update",
-                    exact=False,
-                )
-            except PlaywrightError:
-                update_button = self.page.locator(
-                    "button:has-text('Update'), button:has-text('Edit'), "
-                    "button:has-text('Save'), button:has-text('Submit')"
-                )
+        if update_button.count() == 0:
+            update_button = self.page.get_by_role(
+                "link",
+                name=re.compile(
+                    r"^(update|edit|add)( profile| details)?$",
+                    re.IGNORECASE,
+                ),
+                exact=False,
+            )
         if update_button.count() != 1:
             raise RuntimeError(
-                "Could not find Shine's profile-details update control."
+                "Could not find a unique Update/Edit control for Shine's "
+                "work-profile section."
             )
         update_button.click(timeout=10000)
 

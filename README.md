@@ -1,9 +1,9 @@
 # Job Pipeline and Resume Updates
 
-Find recent Naukri listings that fit your goals, compare them with your
-candidate profile, and prepare job-specific resume drafts for your review. The
-project can also upload a changed source resume to signed-in Naukri, Foundit,
-Indeed, Shine, Hirist, and Wellfound profiles.
+Find recent Naukri listings or run an opt-in Instahyre search, compare jobs
+with your candidate profile, and prepare job-specific resume drafts for your
+review. The project can also upload a changed source resume to signed-in
+Naukri, Foundit, Indeed, Shine, Hirist, and Wellfound profiles.
 
 This is a **review-first** job assistant. It requires your terminal approval
 for each job before attempting a supported one-step Naukri application. It
@@ -11,7 +11,8 @@ can update the Naukri resume headline and key skills and add resume-supported
 projects. It can also add resume-supported skills, work experience, and
 projects to Foundit. Shine supports updates to its summary, skills, and
 selected work details. Indeed, Hirist, and Wellfound currently support resume
-uploads only. Job discovery currently runs on Naukri only.
+uploads only. Naukri remains the default job search; Instahyre search is
+started separately and never submits applications.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -19,7 +20,8 @@ uploads only. Job discovery currently runs on Naukri only.
 
 ## What it does
 
-1. Searches Naukri for the configured roles and locations.
+1. Searches Naukri for the configured roles and locations, or Instahyre with
+   the standalone `--search-instahyre` command.
 2. Filters out listings outside the configured posting-age window.
 3. Scores jobs against your skills, experience, location, education, and
    preferences.
@@ -45,6 +47,7 @@ uploads only. Job discovery currently runs on Naukri only.
 |-- requirements.txt                # Python dependencies
 |-- HOW_TO_RUN.txt                  # General Windows run instructions
 |-- HOW_TO_RUN_NAUKRI.txt           # Naukri resume/profile instructions
+|-- HOW_TO_RUN_INSTAHYRE.txt        # Instahyre search instructions
 |-- HOW_TO_RUN_FOUNDIT.txt          # Foundit resume/profile instructions
 |-- HOW_TO_RUN_INDEED.txt           # Indeed resume instructions
 |-- HOW_TO_RUN_SHINE.txt            # Shine resume instructions
@@ -59,7 +62,7 @@ uploads only. Job discovery currently runs on Naukri only.
 |   |-- config/                      # YAML configuration loading
 |   |-- database/                    # Local database and job repository
 |   |-- extraction/                  # Resume and job-description parsing
-|   |-- ingestion/                   # Naukri browser and job collection
+|   |-- ingestion/                   # Job-site browsers and job collection
 |   |-- matching/                    # Role, skill, location, and score logic
 |   |-- notification/                # Notifications
 |   |-- pipelines/                   # Job pipeline and daily scheduler
@@ -251,6 +254,15 @@ verification yourself in the visible browser.
 The app searches jobs and may prompt you to review matching listings in the
 terminal. Keep the terminal open and available for input during an interactive
 run.
+
+To search Instahyre separately and add its visible listings to the same local
+review queue without submitting applications:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --search-instahyre
+```
+
+See [HOW_TO_RUN_INSTAHYRE.txt](./HOW_TO_RUN_INSTAHYRE.txt) for details.
 
 To update Foundit only, without running a Naukri search:
 

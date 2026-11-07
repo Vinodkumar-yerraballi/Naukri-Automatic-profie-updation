@@ -1,0 +1,22 @@
+INSTAHYRE JOB SEARCH GUIDE
+=========================
+
+From the project directory in PowerShell, check the search roles and
+locations in config\job_preferences.yaml, then run:
+
+   .venv\Scripts\python.exe main.py --search-instahyre
+
+This opens Instahyre's public job-search page, selects each configured role
+and location search, and adds visible job listings to the same local job
+database used by the Naukri review queue. It uses the configured
+max_searches_per_run and max_jobs_per_run limits.
+
+The command is search-only. It does not apply to jobs, change profile data,
+or require an Instahyre login for public listings. If Instahyre asks for a
+security check, complete it yourself in the browser and retry. The search
+filters and listing-card selectors may need updates if Instahyre changes its
+page.
+
+Instahyre searches are opt-in and do not run as part of python main.py or the
+daily Naukri scheduler. Review collected listings in the local job queue
+before taking any action.

@@ -4,6 +4,7 @@ from datetime import date
 from playwright.sync_api import Error as PlaywrightError
 
 from src.ingestion.naukri_browser import NaukriBrowser
+from src.ingestion.instahyre_browser import InstahyreBrowser
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
@@ -50,6 +51,85 @@ def _select_search_queries(
                 return selected_queries
 
     return selected_queries
+
+
+def run_instahyre_search() -> None:
+    """Search Instahyre listings and place matches in the local review queue."""
+    config_manager = ConfigManager()
+    search_config = config_manager.get_job_search_config()
+    roles = search_config.get("roles", [])
+    locations = search_config.get("locations", [])
+    if not roles or not locations:
+        raise ValueError(
+            "Configure at least one job-search role and location before "
+            "searching Instahyre."
+        )
+
+    max_searches = max(
+        1,
+        int(
+            search_config.get(
+                "max_searches_per_run",
+                len(roles) * len(locations),
+            )
+        ),
+    )
+    queries = _select_search_queries(
+        roles,
+        locations,
+        max_searches,
+        day_offset=date.today().toordinal(),
+    )
+    max_jobs = max(1, int(search_config.get("max_jobs_per_run", 20)))
+
+    profile_manager = ProfileManager("config/profile.yaml")
+    profile_manager.load_profile()
+    experience_config = search_config.get("experience", {})
+    evaluator = JobEvaluator(
+        candidate_skills=profile_manager.get_all_skills(),
+        target_roles=profile_manager.get_target_roles(),
+        preferred_locations=locations,
+        preferred_work_modes=search_config.get("work_modes", []),
+        candidate_min_experience=experience_config.get("minimum", 0),
+        candidate_max_experience=experience_config.get("maximum", 2),
+        candidate_education=profile_manager.get_education(),
+    )
+    repository = JobRepository()
+    collector = JobCollector(evaluator=evaluator, repository=repository)
+    browser = InstahyreBrowser(headless=False)
+    jobs_by_url = {}
+
+    try:
+        browser.start()
+        for index, (role, location) in enumerate(queries, start=1):
+            print(
+                f"\nInstahyre search {index}/{len(queries)}: "
+                f"{role} in {location}"
+            )
+            for job in browser.search_jobs(role, location):
+                jobs_by_url.setdefault(job["job_url"], job)
+
+        jobs = list(jobs_by_url.values())[:max_jobs]
+        print(f"\nUnique Instahyre listings found: {len(jobs)}")
+        inserted = updated = skipped = 0
+        for job in jobs:
+            result = collector.process_job(
+                job_description=job["description"],
+                job_url=job["job_url"],
+                source="Instahyre",
+                job_metadata=job,
+            )
+            inserted += bool(result["inserted"])
+            updated += bool(result["updated"])
+            skipped += bool(result.get("skipped"))
+        print(
+            "Instahyre search complete. "
+            f"Added: {inserted}; refreshed: {updated}; "
+            f"skipped by experience filter: {skipped}. "
+            "No applications were submitted."
+        )
+    finally:
+        browser.close()
 
 
 def update_candidate_platform(
@@ -1094,6 +1174,14 @@ if __name__ == "__main__":
         help="Run the pipeline daily at the configured local time.",
     )
     actions.add_argument(
+        "--search-instahyre",
+        action="store_true",
+        help=(
+            "Search Instahyre and add matching listings to the local review "
+            "queue without submitting applications."
+        ),
+    )
+    actions.add_argument(
         "--setup-naukri-session",
         action="store_true",
         help="Sign in manually and save a local Naukri browser session.",
@@ -1149,7 +1237,9 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    if arguments.setup_naukri_session:
+    if arguments.search_instahyre:
+        run_instahyre_search()
+    elif arguments.setup_naukri_session:
         config_manager = ConfigManager()
         profile_config = config_manager.get_naukri_profile_config()
         browser = NaukriBrowser(headless=False)
