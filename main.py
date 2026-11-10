@@ -26,6 +26,7 @@ from src.profile.platform_resume_uploader import (
 from src.profile.resume_profile_proposal import ResumeProfileProposal
 from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
+from scripts.daily_job_report import write_headless_review_report
 
 
 def _select_search_queries(
@@ -143,10 +144,12 @@ def update_candidate_platform(
     resume_tailoring,
     playwright=None,
     reconcile_profile_fields: bool = False,
+    headless: bool = False,
 ) -> list[str]:
     """Update one platform's resume and configured resume-supported fields."""
     browser = CandidatePlatformBrowser(
         platform,
+        headless=headless,
         platform_config=platform_config,
     )
     failures = []
@@ -359,6 +362,7 @@ def upload_resume_to_enabled_profiles(
     platform_configs: dict,
     naukri_browser: NaukriBrowser,
     playwright=None,
+    headless: bool = False,
 ) -> list[str]:
     """Upload one selected tailored resume to each enabled platform."""
     failures = []
@@ -389,6 +393,7 @@ def upload_resume_to_enabled_profiles(
 
         browser = CandidatePlatformBrowser(
             platform,
+            headless=headless,
             platform_config=platform_config,
         )
         try:
@@ -427,7 +432,7 @@ def upload_resume_to_enabled_profiles(
     return failures
 
 
-def main(run_review=True):
+def main(run_review=True, headless=False):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
 
@@ -448,9 +453,7 @@ def main(run_review=True):
         False,
     )
 
-    browser = NaukriBrowser(
-        headless=False
-    )
+    browser = NaukriBrowser(headless=headless)
 
     try:
 
@@ -510,6 +513,7 @@ def main(run_review=True):
                 source_resume,
                 resume_tailoring,
                 playwright=browser.playwright,
+                headless=headless,
             )
             for failure in failures:
                 print(
@@ -1064,6 +1068,7 @@ def main(run_review=True):
                 config_manager.get_resume_platform_configs(),
                 browser,
                 playwright=browser.playwright,
+                headless=headless,
             ):
                 print(f"\n{failure}")
 
@@ -1080,6 +1085,11 @@ def main(run_review=True):
                         "maximum_applications_per_day", 15
                     )
                 )
+                auto_approve_rules = application_config.get(
+                    "auto_approve_rules",
+                    {},
+                )
+                permission_manager = PermissionManager()
 
                 def submit_approved_job(job):
                     attempts_today = (
@@ -1093,6 +1103,26 @@ def main(run_review=True):
                                 f"({maximum_applications}) has been reached."
                             ),
                         }
+
+                    if auto_approve_rules.get("enabled", False):
+                        can_auto_approve, failing_rule = (
+                            permission_manager.evaluate_auto_approve_rules(
+                                job,
+                                auto_approve_rules,
+                            )
+                        )
+                        if not can_auto_approve:
+                            application_tracker.mark_skipped(
+                                job["job_url"],
+                                reason=failing_rule,
+                            )
+                            return {
+                                "status": "SKIPPED",
+                                "message": (
+                                    "Job skipped by auto-approve rule: "
+                                    f"{failing_rule}"
+                                ),
+                            }
 
                     result = browser.submit_application(job)
                     if result["status"] == "APPLIED":
@@ -1119,6 +1149,19 @@ def main(run_review=True):
                 resume_drafts=resume_drafts,
             )
         else:
+            if headless:
+                pending_jobs = review_queue.get_pending_jobs()
+                for job in pending_jobs:
+                    repository.update_status(
+                        job["job_url"],
+                        "needs_review",
+                    )
+                    job["status"] = "needs_review"
+                report_paths = write_headless_review_report(pending_jobs)
+                print(
+                    "\nHeadless review report saved: "
+                    f"{report_paths['markdown']}"
+                )
             print(
                 "\nJobs remain in the review queue. No applications were "
                 "submitted because interactive approval was not enabled."
@@ -1176,6 +1219,14 @@ if __name__ == "__main__":
         "--schedule",
         action="store_true",
         help="Run the pipeline daily at the configured local time.",
+    )
+    actions.add_argument(
+        "--headless-run",
+        action="store_true",
+        help=(
+            "Run the full pipeline without terminal prompts and write the "
+            "pending review queue to the daily report."
+        ),
     )
     actions.add_argument(
         "--search-instahyre",
@@ -1474,4 +1525,7 @@ if __name__ == "__main__":
             ),
         )
     else:
-        main()
+        main(
+            run_review=not arguments.headless_run,
+            headless=arguments.headless_run,
+        )

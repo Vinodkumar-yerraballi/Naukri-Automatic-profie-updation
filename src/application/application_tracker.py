@@ -39,6 +39,11 @@ class ApplicationTracker:
         self.repository.update_status(
             job_url,"REJECTED"
         )
+
+    def mark_skipped(self, job_url: str, reason: str | None = None):
+        """Record a job skipped by a policy or validation rule."""
+        self.repository.update_status(job_url, "SKIPPED")
+
     def get_application_status(self,job_url:str):
         """
         Get the current application status.

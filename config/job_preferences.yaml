@@ -53,6 +53,12 @@ application:
 
   auto_apply: false
 
+  auto_approve_rules:
+    enabled: false
+    min_score: 80
+    require_keywords_any: []
+    exclude_companies: []
+
   maximum_applications_per_day: 15
 
 

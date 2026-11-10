@@ -123,6 +123,85 @@ def write_reports(rows, run_time, run_status, message=""):
     return md_path, csv_path, summary_path
 
 
+def write_headless_review_report(jobs, run_time=None):
+    """Write the pending database review queue for a non-interactive run."""
+    run_time = run_time or datetime.now(IST)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = run_time.strftime("%Y-%m-%d_%H-%M-%S")
+    markdown_path = REPORT_DIR / f"headless_review_queue_{stamp}_IST.md"
+    csv_path = REPORT_DIR / f"headless_review_queue_{stamp}_IST.csv"
+    summary_path = REPORT_DIR / f"headless_review_queue_{stamp}_IST.json"
+    fields = (
+        "title",
+        "company",
+        "location",
+        "match_score",
+        "status",
+        "source",
+        "job_url",
+    )
+    rows = [
+        {
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "location": job.get("location", ""),
+            "match_score": job.get("match_score", ""),
+            "status": "needs_review",
+            "source": job.get("source", ""),
+            "job_url": job.get("job_url", ""),
+        }
+        for job in jobs
+    ]
+
+    with csv_path.open("w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    lines = [
+        "# Headless Job Review Queue",
+        "",
+        f"- Run time: {run_time.isoformat()}",
+        f"- Jobs needing review: {len(rows)}",
+        "- Application submission: DISABLED — manual review required",
+        "",
+    ]
+    if not rows:
+        lines.append("No jobs are waiting for review.")
+    for row in rows:
+        lines.extend([
+            f"## {row['title'] or 'Untitled job'} — "
+            f"{row['company'] or 'Company not listed'}",
+            f"- Match score: {row['match_score']}",
+            "- Status: needs_review",
+            f"- Location: {row['location'] or 'Not listed'}",
+            f"- Source: {row['source'] or 'Unknown'}",
+            f"- URL: {row['job_url'] or 'Unavailable'}",
+            "",
+        ])
+    markdown_path.write_text("\n".join(lines), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(
+            {
+                "run_at_ist": run_time.isoformat(),
+                "status": "SUCCESS",
+                "jobs_needing_review": len(rows),
+                "application_submission_enabled": False,
+                "jobs": rows,
+                "markdown_report": str(markdown_path),
+                "csv_report": str(csv_path),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "markdown": markdown_path,
+        "csv": csv_path,
+        "summary": summary_path,
+    }
+
+
 def run_report():
     run_time = datetime.now(IST)
     rows = []

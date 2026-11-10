@@ -329,11 +329,11 @@ class JobRepository:
             """
             SELECT *
             FROM jobs
-            WHERE status = ?
+            WHERE status IN (?, ?)
             AND source = ?
             ORDER BY match_score DESC, id DESC
             """,
-            ("REVIEW", "Naukri")
+            ("REVIEW", "needs_review", "Naukri")
         )
 
         jobs = cursor.fetchall()

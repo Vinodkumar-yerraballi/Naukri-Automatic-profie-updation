@@ -1,7 +1,9 @@
 from src.application.permission import PermissionManager
 from src.application.application_tracker import ApplicationTracker
 from src.application.captcha_handler import CaptchaHandler
+from src.config.config_manager import ConfigManager
 from src.notification.notifier import Notifier
+
 
 class ApplicationWorkflow:
     """

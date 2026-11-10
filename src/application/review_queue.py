@@ -31,7 +31,7 @@ class ReviewQueue:
         if not job:
             return False
 
-        if job.get("status") != "REVIEW":
+        if job.get("status") not in {"REVIEW", "needs_review"}:
             return False
 
         self.application_tracker.mark_approved(job_url)
@@ -47,7 +47,7 @@ class ReviewQueue:
         if not job:
             return False
 
-        if job.get("status") != "REVIEW":
+        if job.get("status") not in {"REVIEW", "needs_review"}:
             return False
 
         self.application_tracker.mark_rejected(job_url)
