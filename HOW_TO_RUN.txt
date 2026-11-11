@@ -49,6 +49,26 @@ COMMANDS YOU WILL USE
    supported one-step Apply action on Naukri. Review the job and resume
    carefully before approving.
 
+   To search Naukri explicitly:
+
+   .venv\Scripts\python.exe main.py --search-naukri
+
+   To search Instahyre separately:
+
+   .venv\Scripts\python.exe main.py --search-instahyre
+
+   To search Shine separately:
+
+   .venv\Scripts\python.exe main.py --search-shine
+
+   Shine results are scored against your resume. Listings with unknown/old
+   posting ages or without a full job description are skipped. The default
+   draft threshold is a 75% job-to-resume match, configurable in
+   config\job_preferences.yaml. No applications are submitted.
+
+   Job-search adapters currently exist for Naukri, Instahyre, and Shine.
+   Foundit, Indeed, Hirist, and Wellfound do not yet search listings.
+
    To update an individual platform without starting the Naukri job search:
 
    .venv\Scripts\python.exe main.py --update-foundit-profile
@@ -99,17 +119,41 @@ UPDATE YOUR RESUME ON SUPPORTED PLATFORMS
 UPDATE PROFILE FIELDS
 ---------------------
 
-When enabled in config\job_preferences.yaml, the app updates the Naukri
-headline, key skills, and projects from resume-supported information. Foundit
-can add resume-supported skills, work experience, and projects. It does not
-overwrite existing project or work-history records. Shine, Hirist, Indeed,
-and Wellfound currently upload the resume only.
+The normal and scheduled runs can prepare resume-supported field proposals,
+but do not apply profile-field edits. The explicit `--update-<platform>-profile`
+commands display the proposal and apply supported fields only after you type
+`APPLY`. Existing records are preserved; no project or work-history record is
+deleted. Naukri supports headline, key skills, and adding missing projects.
+Foundit supports skills, work experience, and adding missing projects.
+Shine supports summary, skills, and selected work details. Indeed, Hirist, and
+Wellfound currently upload the resume only.
 
-Use --prepare-profile-update to create a JSON proposal for manual review
-without changing profile fields. Open data\processed\profile_update_proposal.json,
-check every detail against your real experience, and edit your profile
-yourself if you prefer not to use the automated Naukri/Foundit field updates.
-Review each platform after an update.
+Use --prepare-profile-update to create a Naukri JSON proposal for manual
+review without opening the profile editor. Open
+data\processed\profile_update_proposal.json and check every detail against
+your real experience.
+
+To configure and generate daily headline/About text proposals, edit the
+per-platform headline_prompt and about_prompt values under
+profile_text_updates.platforms in config\job_preferences.yaml. Use the same
+AI provider and API key configured for resume tailoring, then run one platform
+at a time or all enabled platforms:
+
+   .venv\Scripts\python.exe main.py --generate-profile-text naukri
+   .venv\Scripts\python.exe main.py --generate-profile-text foundit
+   .venv\Scripts\python.exe main.py --generate-profile-text indeed
+   .venv\Scripts\python.exe main.py --generate-profile-text instahyre
+   .venv\Scripts\python.exe main.py --generate-profile-text shine
+   .venv\Scripts\python.exe main.py --generate-profile-text hirist
+   .venv\Scripts\python.exe main.py --generate-profile-text wellfound
+   .venv\Scripts\python.exe main.py --generate-profile-text all
+
+Review the dated JSON under data\processed\profile_text and copy approved
+text to your profile yourself. The generator saves used headlines in
+data\profile_text_history.json, avoids generating a second proposal on the
+same date, and rejects repeated headlines. It does not publish profile
+changes. See HOW_TO_RUN_PROFILE_TEXT.txt for Windows daily-task setup and
+platform limitations.
 
 To change the roles and skills used by this project's job matching, edit:
 

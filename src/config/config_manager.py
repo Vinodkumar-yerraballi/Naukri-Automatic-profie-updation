@@ -64,6 +64,10 @@ class ConfigManager:
         """Return daily schedule configuration."""
         return self.preferences.get("schedule", {})
 
+    def get_profile_text_config(self) -> dict:
+        """Return daily profile-text proposal configuration."""
+        return self.preferences.get("profile_text_updates", {})
+
     def get_naukri_profile_config(self) -> dict:
         """Return Naukri profile-update configuration."""
         return self.preferences.get("naukri_profile", {})

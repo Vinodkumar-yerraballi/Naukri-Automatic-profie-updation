@@ -204,3 +204,70 @@ schedule:
   time: "09:00"
 
   timezone: Asia/Kolkata
+
+
+profile_text_updates:
+
+  enabled: true
+
+  output_directory: data/processed/profile_text
+
+  history_file: data/profile_text_history.json
+
+  platforms:
+
+    naukri:
+      enabled: true
+      headline_prompt: |
+        Apply the Naukri Profile Optimization Master Prompt's resume-analysis,
+        target-role, and keyword-research guidance to the headline only.
+        Analyze the complete resume and identify up to five best-fitting target
+        roles. Build a focused recruiter-search keyword bank from relevant
+        technologies, databases, analytics methods, reporting tools, business
+        terms, and role-specific skills, but use only terms supported by the
+        resume and never keyword-stuff. Internally create ten distinct,
+        professional Naukri headline options that fit the current Naukri field
+        limit. Each option should combine a best-fit role, the strongest
+        supported skills, and a truthful value proposition. Select one
+        concise, copy-ready option that is meaningfully different from every
+        previously used headline supplied with this request.
+      about_prompt: |
+        Apply the Naukri Profile Optimization Master Prompt's profile-summary
+        and final-audit guidance to the About/summary text only. Write concise,
+        recruiter-focused, ATS-readable copy that highlights the best-fit
+        target role, relevant domain, supported technical stack, measurable
+        impact when the resume provides it, collaboration and problem-solving
+        when evidenced, and a realistic career objective. Mention years of
+        experience only if the resume explicitly states them. Remove generic
+        claims and repetition. Keep every statement factual and ready to paste
+        into Naukri.
+
+    foundit:
+      enabled: true
+      headline_prompt: "Write a concise Foundit professional headline for suitable data and analytics roles, using only the resume."
+      about_prompt: "Write a concise Foundit About section describing the candidate's relevant analytics skills and background without unsupported claims."
+
+    indeed:
+      enabled: true
+      headline_prompt: "Write a concise Indeed professional headline relevant to the candidate's target roles, supported by the resume."
+      about_prompt: "Write a concise Indeed professional summary using only the candidate's documented skills, experience, and education."
+
+    instahyre:
+      enabled: true
+      headline_prompt: "Write a concise Instahyre profile headline that fits relevant data and analytics roles and is grounded in the resume."
+      about_prompt: "Write a short Instahyre About section focused on the candidate's documented skills and relevant work or project experience."
+
+    shine:
+      enabled: true
+      headline_prompt: "Write a concise Shine professional headline for the candidate's relevant data roles based only on the resume."
+      about_prompt: "Write a factual Shine profile summary that highlights relevant analytics skills and background. Keep it suitable for a profile summary field."
+
+    hirist:
+      enabled: true
+      headline_prompt: "Write a concise Hirist professional headline for relevant data and analytics roles, using only resume-supported details."
+      about_prompt: "Write a factual Hirist About section emphasizing the candidate's documented technical skills and relevant projects or experience."
+
+    wellfound:
+      enabled: true
+      headline_prompt: "Write a concise Wellfound profile headline that accurately represents the candidate's target data and analytics work."
+      about_prompt: "Write a concise Wellfound About section using only the candidate's resume-supported skills, education, and experience."

@@ -1,18 +1,21 @@
 # Job Pipeline and Resume Updates
 
-Find recent Naukri listings or run an opt-in Instahyre search, compare jobs
-with your candidate profile, and prepare job-specific resume drafts for your
-review. The project can also upload a changed source resume to signed-in
+Find recent Naukri and Shine listings or run an opt-in Instahyre search,
+compare jobs with your candidate profile, and prepare job-specific resume
+drafts for your review. Daily AI-generated headline and About proposals can be created for
+each configured platform and reviewed before you post them. The project can
+also upload a changed source resume to signed-in
 Naukri, Foundit, Indeed, Shine, Hirist, and Wellfound profiles.
 
 This is a **review-first** job assistant. It requires your terminal approval
-for each job before attempting a supported one-step Naukri application. It
-can update the Naukri resume headline and key skills and add resume-supported
-projects. It can also add resume-supported skills, work experience, and
-projects to Foundit. Shine supports updates to its summary, skills, and
-selected work details. Indeed, Hirist, and Wellfound currently support resume
-uploads only. Naukri remains the default job search; Instahyre search is
-started separately and never submits applications.
+for each job before attempting a supported one-step Naukri application.
+Profile-field proposals are saved for review; supported field edits require
+you to type `APPLY`. Naukri supports its resume headline and key skills and
+adding resume-supported projects. Foundit supports skills, work experience,
+and projects. Shine supports its summary, skills, and selected work details.
+Indeed, Hirist, and Wellfound currently support resume uploads only. Naukri
+remains the default job search; Instahyre and Shine searches are started
+separately and never submit applications.
 
 > A stronger profile comes from clear, truthful evidence of your work. This
 > tool can help organize that evidence and target relevant roles, but it cannot
@@ -20,8 +23,8 @@ started separately and never submits applications.
 
 ## What it does
 
-1. Searches Naukri for the configured roles and locations, or Instahyre with
-   the standalone `--search-instahyre` command.
+1. Searches Naukri for the configured roles and locations, or runs the
+   standalone `--search-instahyre` and `--search-shine` commands.
 2. Filters out listings outside the configured posting-age window.
 3. Scores jobs against your skills, experience, location, education, and
    preferences.
@@ -34,9 +37,11 @@ started separately and never submits applications.
 7. Can upload your changed source resume to your signed-in Naukri, Foundit,
    Indeed, Shine, Hirist, and Wellfound profiles, and update the supported
    Naukri, Foundit, and Shine profile fields described below.
-8. Can prepare a Naukri profile-update proposal as JSON for you to review and
-   apply manually.
-9. With `application.auto_apply: true`, can attempt a supported one-step
+8. Saves profile-field proposals for review and requires explicit terminal
+   confirmation before changing supported profile fields.
+9. Can generate one distinct, resume-grounded headline and About proposal per
+   platform per day, retaining history and never posting the text automatically.
+10. With `application.auto_apply: true`, can attempt a supported one-step
    application after you approve that specific job in the terminal.
 
 ## Project structure
@@ -48,6 +53,7 @@ started separately and never submits applications.
 |-- HOW_TO_RUN.txt                  # General Windows run instructions
 |-- HOW_TO_RUN_NAUKRI.txt           # Naukri resume/profile instructions
 |-- HOW_TO_RUN_INSTAHYRE.txt        # Instahyre search instructions
+|-- HOW_TO_RUN_PROFILE_TEXT.txt     # Daily per-platform headline/About prompts
 |-- HOW_TO_RUN_FOUNDIT.txt          # Foundit resume/profile instructions
 |-- HOW_TO_RUN_INDEED.txt           # Indeed resume instructions
 |-- HOW_TO_RUN_SHINE.txt            # Shine resume instructions
@@ -255,6 +261,12 @@ The app searches jobs and may prompt you to review matching listings in the
 terminal. Keep the terminal open and available for input during an interactive
 run.
 
+Run Naukri explicitly without changing the existing behavior:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --search-naukri
+```
+
 To search Instahyre separately and add its visible listings to the same local
 review queue without submitting applications:
 
@@ -263,6 +275,27 @@ review queue without submitting applications:
 ```
 
 See [HOW_TO_RUN_INSTAHYRE.txt](./HOW_TO_RUN_INSTAHYRE.txt) for details.
+
+To search Shine separately, score fresh listings, and create eligible
+job-specific resume drafts without submitting applications:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --search-shine
+```
+
+See [HOW_TO_RUN_SHINE.txt](./HOW_TO_RUN_SHINE.txt) for details.
+
+Job-search adapters currently exist for Naukri, Instahyre, and Shine. The
+Shine adapter skips listings without a verifiable posting age inside the
+configured freshness window or without a full job description. Foundit,
+Indeed, Hirist, and Wellfound do not yet have verified job-listing search
+adapters; their commands cover resume uploads and supported profile actions.
+
+The configured minimum score (75 by default) is this project's 0-100
+job-to-resume relevance score, not a platform-provided ATS score. Tailored
+resume drafts are created only at or above the threshold and only when a full
+job description is available. The score is a prioritization aid; review each
+listing and draft yourself.
 
 To update Foundit only, without running a Naukri search:
 
@@ -275,6 +308,10 @@ To update Naukri only, without running the job search:
 ```powershell
 .\.venv\Scripts\python.exe main.py --update-naukri-profile
 ```
+
+The command displays the proposed field values and changes them only after
+you type `APPLY`. A normal scheduled run does not apply headline, skills,
+employment, or project changes without that confirmation.
 
 For individual resume updates, use the matching command:
 
@@ -315,6 +352,41 @@ The proposal is written to
 `data\processed\profile_update_proposal.json`. Review every suggested detail
 and make any profile changes yourself. The command does not edit Naukri
 profile fields.
+
+### Generate daily headline and About proposals
+
+Edit `profile_text_updates.platforms.<platform>.headline_prompt` and
+`about_prompt` in `config\job_preferences.yaml` to customize each platform's
+instructions. The feature uses the existing `resume_tailoring` provider and
+API key from `.env`. The Naukri prompts incorporate the attached master
+prompt's resume analysis, target roles, supported keyword research, ten
+headline options, and recruiter-focused summary guidance. Each day's proposal
+selects one unused headline and one About/summary; other master-prompt sections
+are not generated by this headline/About feature. For example:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --generate-profile-text naukri
+.\.venv\Scripts\python.exe main.py --generate-profile-text foundit
+.\.venv\Scripts\python.exe main.py --generate-profile-text indeed
+.\.venv\Scripts\python.exe main.py --generate-profile-text instahyre
+.\.venv\Scripts\python.exe main.py --generate-profile-text shine
+.\.venv\Scripts\python.exe main.py --generate-profile-text hirist
+.\.venv\Scripts\python.exe main.py --generate-profile-text wellfound
+```
+
+Use `--generate-profile-text all` to generate proposals for all enabled
+platforms. The dated JSON files are saved in
+`data\processed\profile_text`; used headlines are stored in
+`data\profile_text_history.json`. The generator skips a proposal that already
+exists for the current date and rejects a headline that repeats an earlier
+one, retrying generation before reporting an error. Review the JSON and copy
+approved text to your profile yourself. To apply only the reviewed Naukri
+headline, run `main.py --apply-profile-text naukri` and type `APPLY` after
+checking the displayed text. The command does not edit About/summary text or
+publish generated fields on other platforms.
+See [HOW_TO_RUN_PROFILE_TEXT.txt](./HOW_TO_RUN_PROFILE_TEXT.txt) for daily
+Windows Task Scheduler setup, API-key configuration, and platform-specific
+notes.
 
 ## What happens during a run
 
@@ -357,8 +429,8 @@ profile fields.
 - Each run searches up to `job_search.max_searches_per_run` role/location
   combinations, filters listings to `job_search.posted_within_hours`, and
   processes up to `job_search.max_jobs_per_run` listings (20 by default).
-  Job discovery currently runs on Naukri only; other platform commands update
-  resumes and, on supported sites, profile fields.
+  Job discovery currently runs on Naukri and Instahyre only; other platform
+  commands update resumes and, on supported sites, profile fields.
 - The job search rotates through configured role/location combinations. The
   defaults search up to eight combinations per run and favor listings posted
   within the last 24 hours.

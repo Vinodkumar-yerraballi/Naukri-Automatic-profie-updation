@@ -25,3 +25,7 @@ uploads the resume only; skills, work experience, and projects are not
 automatically filled on Indeed. The job search runs on Naukri, not Indeed.
 This tool does not apply to jobs on Indeed and cannot guarantee interviews or
 shortlisting.
+
+To generate a reviewable Indeed headline/About proposal using a custom
+prompt, see HOW_TO_RUN_PROFILE_TEXT.txt. Indeed profile text must be copied
+manually; the proposal command does not edit Indeed.

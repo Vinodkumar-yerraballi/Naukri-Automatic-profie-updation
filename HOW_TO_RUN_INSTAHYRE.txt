@@ -25,3 +25,6 @@ page.
 Instahyre searches are opt-in and do not run as part of python main.py or the
 daily Naukri scheduler. Review collected listings in the local job queue
 before taking any action.
+
+To generate a reviewable headline/About proposal for Instahyre, see
+HOW_TO_RUN_PROFILE_TEXT.txt. This proposal is not posted to Instahyre.

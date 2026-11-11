@@ -1,0 +1,144 @@
+DAILY HEADLINE AND ABOUT PROPOSALS
+==================================
+
+Run commands from the project directory in PowerShell. Proposals are generated
+from data\resume.pdf and the AI provider configured under resume_tailoring in
+config\job_preferences.yaml. Add that provider's API key to the project-root
+.env file (for example, GROQ_API_KEY=your_key_here). Do not put an API key in
+YAML, prompts, or a command.
+
+EDIT PLATFORM PROMPTS
+---------------------
+
+Edit these fields in config\job_preferences.yaml:
+
+   profile_text_updates.platforms.<platform>.headline_prompt
+   profile_text_updates.platforms.<platform>.about_prompt
+
+Replace <platform> with naukri, foundit, indeed, instahyre, shine, hirist, or
+wellfound. These instructions are sent to the configured AI provider together
+with the resume. The generator requires resume-supported claims and asks for
+JSON containing a headline and an About section.
+
+The Naukri prompts now use the attached Naukri Profile Optimization Master
+Prompt's relevant guidance: analyze the resume, determine up to five fitting
+roles, research resume-supported recruiter keywords, create ten headline
+options, and produce a recruiter-focused profile summary. The daily proposal
+selects one fresh headline and one About/summary text; it does not generate
+the other sections from that full master prompt. You can edit the Naukri
+prompt blocks in the same YAML file to personalize the instructions.
+
+GENERATE A PROPOSAL FOR ONE PLATFORM
+------------------------------------
+
+   .venv\Scripts\python.exe main.py --generate-profile-text naukri
+   .venv\Scripts\python.exe main.py --generate-profile-text foundit
+   .venv\Scripts\python.exe main.py --generate-profile-text indeed
+   .venv\Scripts\python.exe main.py --generate-profile-text instahyre
+   .venv\Scripts\python.exe main.py --generate-profile-text shine
+   .venv\Scripts\python.exe main.py --generate-profile-text hirist
+   .venv\Scripts\python.exe main.py --generate-profile-text wellfound
+
+Generate for all enabled platforms:
+
+   .venv\Scripts\python.exe main.py --generate-profile-text all
+
+Review the dated JSON proposal in data\processed\profile_text. Copy approved
+text into the corresponding platform yourself. These commands do not sign in,
+edit profiles, or post generated text.
+
+APPLY THE NAUKRI HEADLINE AFTER REVIEW
+--------------------------------------
+
+After checking the latest Naukri JSON and deciding its headline is accurate,
+run:
+
+   .venv\Scripts\python.exe main.py --apply-profile-text naukri
+
+The command displays the headline and requires you to type APPLY before it
+opens the saved Naukri browser session and edits the headline. It updates only
+the Naukri resume headline. It does not update the About/summary text. After
+success, the proposal JSON is marked applied with its applied date and fields.
+If you decline, the profile is left unchanged.
+
+Automatic application is not implemented for Foundit, Indeed, Instahyre,
+Shine, Hirist, or Wellfound. Their generated JSON remains a manual proposal;
+the apply command reports that limitation without opening a browser.
+
+DAILY ROTATION
+--------------
+
+Each proposal is named with the local date, for example:
+
+   data\processed\profile_text\naukri_2026-11-11.json
+
+Only one proposal is generated per platform per date. Re-running on the same
+date returns the existing proposal. The headline history in
+data\profile_text_history.json is used to ask the AI for a different headline
+on the next date. The result is checked against every previous headline
+(ignoring case and punctuation); repeated suggestions are retried and then
+reported as an error instead of being saved. Keep the history file to
+preserve rotation. Do not edit it unless you intend to reset or correct the
+history.
+
+To run it daily, create a Windows Task Scheduler task:
+
+1. Select "Create Basic Task" and choose a daily trigger and time.
+2. Select "Start a program".
+3. Program/script: the full path to
+   .venv\Scripts\python.exe in this project.
+4. Add arguments: main.py --generate-profile-text naukri
+5. Start in: the full project folder (the folder containing main.py).
+6. Save the task and check its History or Last Run Result after the first run.
+
+The computer must be on, signed in if required by the task, and connected to
+the internet. Review each generated file before updating any profile.
+Use --generate-profile-text all instead if you also want proposals for every
+enabled platform.
+
+CONFIGURE YOUR API KEY
+----------------------
+
+The project already reads provider keys from the root .env file. The current
+resume_tailoring.provider is "groq", so create or edit .env beside main.py and
+add:
+
+   GROQ_API_KEY=your_real_groq_key
+
+Then save .env and run a one-time test from PowerShell:
+
+   .venv\Scripts\python.exe main.py --generate-profile-text naukri
+
+The output should report a dated proposal under
+data\processed\profile_text. Open the JSON and check its headline and About
+text before copying either one to Naukri.
+
+Keep the key private: do not put it in config\job_preferences.yaml, a prompt,
+or a command. The provided PDFs do not contain or replace your API key.
+
+The configuration also supports Gemini and Anthropic. If selecting one of
+them, set resume_tailoring.provider and model in
+config\job_preferences.yaml, then add GEMINI_API_KEY or ANTHROPIC_API_KEY to
+.env. Ollama can be selected for local generation without a cloud API key;
+install/start Ollama and configure the model first. The daily task needs
+internet access for cloud providers, a valid key with model access, and an
+available quota. A provider error is reported rather than silently saving a
+blank proposal.
+
+PLATFORM LIMITATIONS
+--------------------
+
+Job searches currently run on Naukri, Instahyre, and Shine. The Shine search
+skips listings without a verifiable posting age or full job description.
+Foundit, Indeed, Hirist, and Wellfound do not yet have verified job-search
+adapters.
+
+The generated headline and About text is proposal-only except for the
+confirmed Naukri headline command above. Naukri About/summary and all generated
+Foundit, Indeed, Instahyre, Shine, Hirist, and Wellfound text must be copied
+manually. Existing Foundit and Shine profile workflows update other
+resume-derived fields, not these generated proposals. Confirm each site's
+field limits and verify saved profile text yourself.
+
+The generator cannot guarantee interviews or shortlisting. Keep profile
+claims accurate and supported by your resume.

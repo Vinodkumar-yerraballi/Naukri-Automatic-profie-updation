@@ -1,10 +1,14 @@
 import argparse
+import hashlib
+import json
 from datetime import date
+from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
 
 from src.ingestion.naukri_browser import NaukriBrowser
 from src.ingestion.instahyre_browser import InstahyreBrowser
+from src.ingestion.shine_job_search import ShineJobSearch
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
 from src.database.job_repository import JobRepository
@@ -24,6 +28,7 @@ from src.profile.platform_resume_uploader import (
     PlatformResumeUploader,
 )
 from src.profile.resume_profile_proposal import ResumeProfileProposal
+from src.profile.profile_text_proposal import ProfileTextProposal
 from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
 from scripts.daily_job_report import write_headless_review_report
@@ -52,6 +57,240 @@ def _select_search_queries(
                 return selected_queries
 
     return selected_queries
+
+
+def generate_profile_text(platform: str) -> None:
+    """Create reviewable daily headline/About proposals."""
+    config_manager = ConfigManager()
+    text_config = config_manager.get_profile_text_config()
+    if not text_config.get("enabled", False):
+        raise RuntimeError(
+            "Daily profile-text generation is disabled in "
+            "config/job_preferences.yaml."
+        )
+
+    profile_configs = {
+        "naukri": config_manager.get_naukri_profile_config(),
+        **config_manager.get_resume_platform_configs(),
+        "instahyre": {
+            "resume_path": config_manager.get_resume_tailoring_config().get(
+                "resume_path",
+                "data/resume.pdf",
+            )
+        },
+    }
+    prompt_configs = text_config.get("platforms", {})
+    selected_platforms = (
+        list(prompt_configs)
+        if platform == "all"
+        else [platform]
+    )
+    unknown_platforms = set(selected_platforms).difference(profile_configs)
+    if unknown_platforms:
+        raise ValueError(
+            "Unsupported profile-text platform(s): "
+            + ", ".join(sorted(unknown_platforms))
+        )
+
+    tailoring_config = config_manager.get_resume_tailoring_config()
+    for selected_platform in selected_platforms:
+        platform_prompts = prompt_configs.get(selected_platform, {})
+        if not platform_prompts.get("enabled", True):
+            if platform == "all":
+                print(
+                    f"Skipping disabled profile-text generation for "
+                    f"{selected_platform.title()}."
+                )
+                continue
+            raise RuntimeError(
+                f"Profile-text generation is disabled for "
+                f"{selected_platform.title()}."
+            )
+
+        resume_path = profile_configs[selected_platform].get(
+            "resume_path",
+            tailoring_config.get("resume_path", "data/resume.pdf"),
+        )
+        service_config = dict(tailoring_config)
+        service_config["resume_path"] = resume_path
+        ai_service = ResumeTailoringService.from_config(service_config)
+        if not ai_service:
+            raise RuntimeError(
+                "Resume tailoring must be enabled to generate "
+                "profile-text proposals."
+            )
+
+        proposal_config = ProfileTextProposal(
+            ai_service,
+            text_config.get(
+                "history_file",
+                "data/profile_text_history.json",
+            ),
+        )
+        output_path = proposal_config.generate(
+            selected_platform,
+            platform_prompts,
+            text_config.get(
+                "output_directory",
+                "data/processed/profile_text",
+            ),
+        )
+        print(
+            f"{selected_platform.title()} profile text proposal ready "
+            f"for review: {output_path}"
+        )
+
+
+def apply_profile_text(platform: str) -> None:
+    """Apply a reviewed profile-text proposal after interactive confirmation."""
+    if platform != "naukri":
+        raise RuntimeError(
+            f"Automatic profile-text application is not implemented for "
+            f"{platform.title()}. Review and copy its proposal manually."
+        )
+
+    text_config = ConfigManager().get_profile_text_config()
+    proposal_directory = Path(
+        text_config.get(
+            "output_directory",
+            "data/processed/profile_text",
+        )
+    )
+    proposal_files = sorted(
+        proposal_directory.glob("naukri_????-??-??.json"),
+        reverse=True,
+    )
+    if not proposal_files:
+        raise FileNotFoundError(
+            "No Naukri profile-text proposal was found. Generate one with "
+            "`python main.py --generate-profile-text naukri` first."
+        )
+
+    proposal_path = proposal_files[0]
+    try:
+        proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Could not read Naukri profile-text proposal: {proposal_path}"
+        ) from error
+    if (
+        not isinstance(proposal, dict)
+        or proposal.get("platform") != "naukri"
+        or not isinstance(proposal.get("headline"), str)
+        or not proposal["headline"].strip()
+    ):
+        raise ValueError(
+            f"Naukri profile-text proposal has no valid headline: "
+            f"{proposal_path}"
+        )
+    if proposal.get("applied") is True:
+        print(f"This proposal is already marked applied: {proposal_path}")
+        return
+
+    headline = proposal["headline"].strip()
+    print(
+        f"\nNaukri headline proposal ({proposal.get('created_on', 'unknown date')}):\n"
+        f"{headline}\n\n"
+        "Only the Naukri resume headline will be updated. The About text "
+        "will not be changed by this command."
+    )
+    confirmation = input(
+        "Type APPLY to update this headline on your signed-in Naukri "
+        "profile: "
+    )
+    if confirmation.strip() != "APPLY":
+        print("No profile changes were made.")
+        return
+
+    config_manager = ConfigManager()
+    profile_config = config_manager.get_naukri_profile_config()
+    browser = NaukriBrowser(headless=False)
+    try:
+        browser.start_persistent(
+            profile_config.get(
+                "browser_profile_directory",
+                "data/naukri_browser_profile",
+            )
+        )
+        changed_fields = browser.update_profile_fields(
+            {
+                "sections": ["headline"],
+                "data": {"headline": headline},
+            }
+        )
+    finally:
+        browser.close()
+
+    proposal["applied"] = True
+    proposal["applied_at"] = date.today().isoformat()
+    proposal["applied_fields"] = changed_fields or ["headline (already current)"]
+    ProfileTextProposal.save(proposal, proposal_path)
+    if changed_fields:
+        print(f"Naukri headline updated. Proposal recorded: {proposal_path}")
+    else:
+        print(
+            "Naukri already had this headline. Proposal recorded as applied: "
+            f"{proposal_path}"
+        )
+
+
+def _confirm_profile_proposal(
+    platform: str,
+    proposal_path: Path,
+    proposal: dict,
+) -> bool:
+    print(f"\nReview this {platform.title()} profile proposal:")
+    print(json.dumps(proposal.get("data", {}), indent=2, ensure_ascii=True))
+    print(f"\nProposal file: {proposal_path}")
+    if input(
+        f"Type APPLY to update the supported {platform.title()} fields: "
+    ).strip() != "APPLY":
+        print("Profile fields were not changed.")
+        return False
+    return True
+
+
+def _create_or_load_profile_proposal(
+    resume_tailoring,
+    sections: list[str],
+    proposal_path: Path,
+    force: bool = False,
+) -> dict:
+    resume_path = Path(resume_tailoring.resume_path)
+    if not resume_path.is_file():
+        raise FileNotFoundError(f"Resume file not found: {resume_path}")
+    digest = hashlib.sha256(resume_path.read_bytes()).hexdigest()
+
+    if proposal_path.is_file() and not force:
+        try:
+            proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                f"Could not read profile proposal: {proposal_path}"
+            ) from error
+        if (
+            isinstance(proposal, dict)
+            and proposal.get("source_resume_sha256") == digest
+            and isinstance(proposal.get("sections"), list)
+            and set(proposal.get("sections", [])) == set(sections)
+        ):
+            return proposal
+
+    proposal_builder = ResumeProfileProposal(resume_tailoring)
+    proposal = proposal_builder.create(sections, review_required=True)
+    proposal_builder.save(proposal, proposal_path)
+    return proposal
+
+
+def _record_profile_proposal_applied(
+    proposal: dict,
+    proposal_path: Path,
+    updated_fields: list[str],
+) -> None:
+    proposal["applied"] = True
+    proposal["applied_at"] = date.today().isoformat()
+    proposal["applied_fields"] = updated_fields or ["already current"]
+    ResumeProfileProposal.save(proposal, proposal_path)
 
 
 def run_instahyre_search() -> None:
@@ -137,6 +376,136 @@ def run_instahyre_search() -> None:
         browser.close()
 
 
+def run_shine_search() -> None:
+    """Search fresh Shine listings, score them, and draft only eligible JDs."""
+    config_manager = ConfigManager()
+    search_config = config_manager.get_job_search_config()
+    roles = search_config.get("roles", [])
+    locations = search_config.get("locations", [])
+    if not roles or not locations:
+        raise ValueError(
+            "Configure at least one job-search role and location before "
+            "searching Shine."
+        )
+
+    max_searches = max(
+        1,
+        int(
+            search_config.get(
+                "max_searches_per_run",
+                len(roles) * len(locations),
+            )
+        ),
+    )
+    queries = _select_search_queries(
+        roles,
+        locations,
+        max_searches,
+        day_offset=date.today().toordinal(),
+    )
+    max_jobs = max(1, int(search_config.get("max_jobs_per_run", 20)))
+    posted_within_hours = int(
+        search_config.get("posted_within_hours", 24)
+    )
+
+    profile_manager = ProfileManager("config/profile.yaml")
+    profile_manager.load_profile()
+    experience_config = search_config.get("experience", {})
+    evaluator = JobEvaluator(
+        candidate_skills=profile_manager.get_all_skills(),
+        target_roles=profile_manager.get_target_roles(),
+        preferred_locations=locations,
+        preferred_work_modes=search_config.get("work_modes", []),
+        candidate_min_experience=experience_config.get("minimum", 0),
+        candidate_max_experience=experience_config.get("maximum", 2),
+        candidate_education=profile_manager.get_education(),
+    )
+    repository = JobRepository()
+    collector = JobCollector(
+        evaluator=evaluator,
+        repository=repository,
+        allow_unknown_experience=True,
+    )
+    browser = ShineJobSearch(headless=False)
+    tailoring_config = config_manager.get_resume_tailoring_config()
+    resume_tailoring = ResumeTailoringService.from_config(tailoring_config)
+    minimum_score = config_manager.get_minimum_score()
+
+    try:
+        browser.start()
+        jobs_by_url = {}
+        for index, (role, location) in enumerate(queries, start=1):
+            print(
+                f"\nShine search {index}/{len(queries)}: "
+                f"{role} in {location}"
+            )
+            for job in browser.search_jobs(
+                role,
+                location,
+                posted_within_hours,
+                max_results=max_jobs - len(jobs_by_url),
+            ):
+                jobs_by_url.setdefault(job["job_url"], job)
+                if len(jobs_by_url) >= max_jobs:
+                    break
+            if len(jobs_by_url) >= max_jobs:
+                break
+
+        jobs = list(jobs_by_url.values())[:max_jobs]
+        print(f"\nUnique fresh Shine listings with full descriptions: {len(jobs)}")
+        inserted = updated = skipped = drafted = 0
+        for job in jobs:
+            result = collector.process_job(
+                job_description=job["description"],
+                job_url=job["job_url"],
+                source="Shine",
+                job_metadata=job,
+            )
+            inserted += bool(result.get("inserted"))
+            updated += bool(result.get("updated"))
+            if result.get("skipped") or result.get("evaluation") is None:
+                skipped += 1
+                print(
+                    f"Skipped {job.get('title', 'Unknown')}: "
+                    f"{result.get('skip_reason', 'job could not be scored')}."
+                )
+                continue
+
+            match_score = result["evaluation"]["final_score"]
+            print(
+                f"{job.get('title', 'Unknown')} — resume match score: "
+                f"{match_score:.1f}%"
+            )
+            if (
+                match_score >= minimum_score
+                and job.get("description_is_complete")
+                and resume_tailoring
+            ):
+                try:
+                    draft_path = resume_tailoring.create_draft(
+                        result["job"]
+                    )
+                except (OSError, RuntimeError, ValueError) as error:
+                    print(
+                        "Resume draft failed for "
+                        f"{job.get('title', 'Unknown')}: "
+                        f"{type(error).__name__}: {error}"
+                    )
+                else:
+                    drafted += 1
+                    print(f"Tailored resume draft saved: {draft_path}")
+
+        print(
+            "Shine search complete. "
+            f"Added: {inserted}; refreshed: {updated}; "
+            f"skipped: {skipped}; tailored resume drafts: {drafted}. "
+            f"Drafts require a resume match score of at least "
+            f"{minimum_score:g}%. No applications were submitted."
+        )
+    finally:
+        browser.close()
+
+
 def update_candidate_platform(
     platform: str,
     platform_config: dict,
@@ -145,13 +514,20 @@ def update_candidate_platform(
     playwright=None,
     reconcile_profile_fields: bool = False,
     headless: bool = False,
+    apply_profile_fields: bool = False,
 ) -> list[str]:
-    """Update one platform's resume and configured resume-supported fields."""
-    browser = CandidatePlatformBrowser(
-        platform,
-        headless=headless,
-        platform_config=platform_config,
-    )
+    """Upload a changed resume and review or apply supported profile fields."""
+    if headless:
+        browser = CandidatePlatformBrowser(
+            platform,
+            headless=True,
+            platform_config=platform_config,
+        )
+    else:
+        browser = CandidatePlatformBrowser(
+            platform,
+            platform_config=platform_config,
+        )
     failures = []
     try:
         browser.start_persistent(
@@ -221,42 +597,64 @@ def update_candidate_platform(
                             "Resume tailoring is required to extract profile "
                             "fields from the source resume."
                         )
-                    if platform == "shine":
-                        print(
-                            "Preparing Shine's profile editor and extracting "
-                            "resume-supported fields with "
-                            f"{resume_tailoring.provider}. Keep this window "
-                            "open while the update is running."
+                    proposal_path = Path(
+                        platform_config.get(
+                            "profile_proposal_file",
+                            f"data/processed/"
+                            f"{platform}_profile_update_proposal.json",
                         )
-                        browser.prepare_profile_update()
-                    proposal_builder = ResumeProfileProposal(
-                        resume_tailoring
                     )
-                    proposal = proposal_builder.create(
+                    proposal = _create_or_load_profile_proposal(
+                        resume_tailoring,
                         platform_config.get(
                             "profile_update_sections",
                             ["skills", "employment", "projects"],
                         ),
-                        review_required=False,
+                        proposal_path,
+                        force=reconcile_platform_fields and apply_profile_fields,
                     )
-                    updated_fields = profile_updater.update_if_changed(
-                        browser,
-                        platform_resume,
+                    if not apply_profile_fields:
+                        if proposal.get("applied") is True:
+                            print(
+                                f"{platform.title()} proposal was already "
+                                "applied; no profile fields were changed."
+                            )
+                        else:
+                            print(
+                                f"{platform.title()} profile proposal saved "
+                                f"for review: {proposal_path}. No profile "
+                                "fields were changed."
+                            )
+                    elif _confirm_profile_proposal(
+                        platform,
+                        proposal_path,
                         proposal,
-                        force=reconcile_platform_fields,
-                    )
-                    if updated_fields:
-                        print(
-                            f"{platform.title()} profile fields updated "
-                            "from the resume: "
-                            f"{', '.join(updated_fields)}"
+                    ):
+                        updated_fields = (
+                            profile_updater.update_if_changed(
+                                browser,
+                                platform_resume,
+                                proposal,
+                                force=reconcile_platform_fields,
+                            )
                         )
-                    else:
-                        print(
-                            f"{platform.title()} profile fields already "
-                            "match resume-supported records; existing "
-                            "records were preserved."
+                        _record_profile_proposal_applied(
+                            proposal,
+                            proposal_path,
+                            updated_fields,
                         )
+                        if updated_fields:
+                            print(
+                                f"{platform.title()} profile fields updated "
+                                "from the resume: "
+                                f"{', '.join(updated_fields)}"
+                            )
+                        else:
+                            print(
+                                f"{platform.title()} profile fields already "
+                                "match resume-supported records; existing "
+                                "records were preserved."
+                            )
             except (
                 OSError,
                 PlaywrightError,
@@ -278,8 +676,9 @@ def update_naukri_candidate_profile(
     resume_path: str,
     resume_tailoring,
     reconcile_profile_fields: bool = False,
+    apply_profile_fields: bool = False,
 ) -> list[str]:
-    """Upload a changed Naukri resume and update supported profile fields."""
+    """Upload a changed resume and review or apply Naukri profile fields."""
     failures = []
     if profile_config.get("update_resume", False):
         try:
@@ -320,29 +719,58 @@ def update_naukri_candidate_profile(
                         "Resume tailoring is required to extract Naukri "
                         "profile fields."
                     )
-                proposal = ResumeProfileProposal(resume_tailoring).create(
+                proposal_path = Path(
+                    profile_config.get(
+                        "profile_proposal_file",
+                        "data/processed/profile_update_proposal.json",
+                    )
+                )
+                proposal = _create_or_load_profile_proposal(
+                    resume_tailoring,
                     profile_config.get(
                         "profile_update_sections",
                         ["headline", "skills", "projects"],
                     ),
-                    review_required=False,
+                    proposal_path,
+                    force=reconcile_profile_fields and apply_profile_fields,
                 )
-                updated_fields = profile_updater.update_if_changed(
-                    browser,
-                    resume_path,
+                if not apply_profile_fields:
+                    if proposal.get("applied") is True:
+                        print(
+                            "Naukri profile proposal was already applied; "
+                            "no profile fields were changed."
+                        )
+                    else:
+                        print(
+                            "Naukri profile proposal saved for review: "
+                            f"{proposal_path}. No profile fields were changed."
+                        )
+                elif _confirm_profile_proposal(
+                    "naukri",
+                    proposal_path,
                     proposal,
-                    force=reconcile_profile_fields,
-                )
-                if updated_fields:
-                    print(
-                        "Naukri profile fields updated from the resume: "
-                        f"{', '.join(updated_fields)}"
+                ):
+                    updated_fields = profile_updater.update_if_changed(
+                        browser,
+                        resume_path,
+                        proposal,
+                        force=reconcile_profile_fields,
                     )
-                else:
-                    print(
-                        "Naukri profile fields already match the "
-                        "resume-supported details."
+                    _record_profile_proposal_applied(
+                        proposal,
+                        proposal_path,
+                        updated_fields,
                     )
+                    if updated_fields:
+                        print(
+                            "Naukri profile fields updated from the resume: "
+                            f"{', '.join(updated_fields)}"
+                        )
+                    else:
+                        print(
+                            "Naukri profile fields already match the "
+                            "resume-supported details."
+                        )
         except (
             OSError,
             PlaywrightError,
@@ -391,11 +819,17 @@ def upload_resume_to_enabled_profiles(
         if not platform_config.get("update_resume", False):
             continue
 
-        browser = CandidatePlatformBrowser(
-            platform,
-            headless=headless,
-            platform_config=platform_config,
-        )
+        if headless:
+            browser = CandidatePlatformBrowser(
+                platform,
+                headless=True,
+                platform_config=platform_config,
+            )
+        else:
+            browser = CandidatePlatformBrowser(
+                platform,
+                platform_config=platform_config,
+            )
         try:
             browser.start_persistent(
                 platform_config.get(
@@ -432,7 +866,7 @@ def upload_resume_to_enabled_profiles(
     return failures
 
 
-def main(run_review=True, headless=False):
+def main(run_review=True, headless=False, update_profiles=True):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
 
@@ -448,7 +882,7 @@ def main(run_review=True, headless=False):
         "resume_path",
         resume_config.get("resume_path", "data/resume.pdf"),
     )
-    upload_best_draft = resume_config.get(
+    upload_best_draft = update_profiles and resume_config.get(
         "upload_best_draft_to_profiles",
         False,
     )
@@ -486,39 +920,41 @@ def main(run_review=True, headless=False):
             initial_naukri_config = dict(profile_config)
             if upload_best_draft:
                 initial_naukri_config["update_resume"] = False
-            for failure in update_naukri_candidate_profile(
-                browser,
-                initial_naukri_config,
-                source_resume,
-                resume_tailoring,
-            ):
-                print(f"\n{failure}")
+            if update_profiles:
+                for failure in update_naukri_candidate_profile(
+                    browser,
+                    initial_naukri_config,
+                    source_resume,
+                    resume_tailoring,
+                ):
+                    print(f"\n{failure}")
         else:
             browser.start()
 
-        for platform, platform_config in (
-            config_manager.get_resume_platform_configs().items()
-        ):
-            if not (
-                platform_config.get("update_resume", False)
-                or platform_config.get("update_profile_fields", False)
+        if update_profiles:
+            for platform, platform_config in (
+                config_manager.get_resume_platform_configs().items()
             ):
-                continue
-            initial_platform_config = dict(platform_config)
-            if upload_best_draft:
-                initial_platform_config["update_resume"] = False
-            failures = update_candidate_platform(
-                platform,
-                initial_platform_config,
-                source_resume,
-                resume_tailoring,
-                playwright=browser.playwright,
-                headless=headless,
-            )
-            for failure in failures:
-                print(
-                    f"\n{failure}"
+                if not (
+                    platform_config.get("update_resume", False)
+                    or platform_config.get("update_profile_fields", False)
+                ):
+                    continue
+                initial_platform_config = dict(platform_config)
+                if upload_best_draft:
+                    initial_platform_config["update_resume"] = False
+                failures = update_candidate_platform(
+                    platform,
+                    initial_platform_config,
+                    source_resume,
+                    resume_tailoring,
+                    playwright=browser.playwright,
+                    headless=headless,
                 )
+                for failure in failures:
+                    print(
+                        f"\n{failure}"
+                    )
 
         # ==================================================
         # 2. Search Naukri
@@ -1237,6 +1673,56 @@ if __name__ == "__main__":
         ),
     )
     actions.add_argument(
+        "--search-shine",
+        action="store_true",
+        help=(
+            "Search fresh Shine listings, score them against the resume, "
+            "and create drafts for eligible descriptions."
+        ),
+    )
+    actions.add_argument(
+        "--search-naukri",
+        action="store_true",
+        help=(
+            "Search Naukri using the configured resume-matched job pipeline."
+        ),
+    )
+    actions.add_argument(
+        "--generate-profile-text",
+        choices=(
+            "all",
+            "naukri",
+            "foundit",
+            "indeed",
+            "instahyre",
+            "shine",
+            "hirist",
+            "wellfound",
+        ),
+        metavar="PLATFORM",
+        help=(
+            "Generate a daily headline and About proposal for one platform "
+            "(or all enabled platforms); proposals are not posted."
+        ),
+    )
+    actions.add_argument(
+        "--apply-profile-text",
+        choices=(
+            "naukri",
+            "foundit",
+            "indeed",
+            "instahyre",
+            "shine",
+            "hirist",
+            "wellfound",
+        ),
+        metavar="PLATFORM",
+        help=(
+            "Apply the latest reviewed profile-text proposal where a "
+            "supported editor exists; asks for confirmation before changes."
+        ),
+    )
+    actions.add_argument(
         "--setup-naukri-session",
         action="store_true",
         help="Sign in manually and save a local Naukri browser session.",
@@ -1292,8 +1778,16 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    if arguments.search_instahyre:
+    if arguments.generate_profile_text:
+        generate_profile_text(arguments.generate_profile_text)
+    elif arguments.apply_profile_text:
+        apply_profile_text(arguments.apply_profile_text)
+    elif arguments.search_naukri:
+        main(update_profiles=False)
+    elif arguments.search_instahyre:
         run_instahyre_search()
+    elif arguments.search_shine:
+        run_shine_search()
     elif arguments.setup_naukri_session:
         config_manager = ConfigManager()
         profile_config = config_manager.get_naukri_profile_config()
@@ -1377,6 +1871,7 @@ if __name__ == "__main__":
                     naukri_resume,
                     naukri_tailoring,
                     reconcile_profile_fields=True,
+                    apply_profile_fields=True,
                 )
             )
         finally:
@@ -1408,6 +1903,7 @@ if __name__ == "__main__":
                     platform_resume,
                     platform_tailoring,
                     reconcile_profile_fields=True,
+                    apply_profile_fields=True,
                 )
             )
         if failures:
@@ -1445,6 +1941,8 @@ if __name__ == "__main__":
             platform_config,
             resume_path,
             resume_tailoring,
+            reconcile_profile_fields=True,
+            apply_profile_fields=True,
         )
         if failures:
             raise RuntimeError("; ".join(failures))
@@ -1468,6 +1966,8 @@ if __name__ == "__main__":
                 profile_config,
                 resume_path,
                 resume_tailoring,
+                reconcile_profile_fields=True,
+                apply_profile_fields=True,
             )
             if failures:
                 raise RuntimeError("; ".join(failures))

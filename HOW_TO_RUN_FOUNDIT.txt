@@ -9,6 +9,12 @@ Sign in yourself in the opened browser, complete any checks, and press Enter
 in PowerShell. The local browser profile is saved in
 data\foundit_browser_profile. Keep it private.
 
+This project does not currently search Foundit job listings. Job searches are
+available separately for Naukri (--search-naukri) and Instahyre
+(--search-instahyre). To generate a reviewable Foundit headline/About draft,
+see HOW_TO_RUN_PROFILE_TEXT.txt; the current Foundit editor automation does
+not update those fields from that proposal.
+
 Replace data\resume.pdf with your updated text-based PDF. To update Foundit
 only, without starting the Naukri job search, run:
 
@@ -16,9 +22,13 @@ only, without starting the Naukri job search, run:
 
 The command uploads a changed resume and uses the configured AI provider to
 extract resume-supported skills, employment, and projects. It adds missing
-entries and preserves existing ones. The regular job-pipeline run also
-rechecks Foundit fields. To force a fresh check on every enabled platform,
-including Naukri and Shine, even when the resume file has not changed, run:
+entries, updates an existing project's description only if the reviewed
+resume proposal differs, and never deletes existing entries. It displays the
+proposal and changes supported fields only after you type `APPLY`. The
+regular job-pipeline run
+can save a proposal but does not apply Foundit field edits. To force a fresh
+check on every enabled platform, including Naukri and Shine, even when the
+resume file has not changed, run:
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
@@ -26,15 +36,10 @@ Confirm the results on Foundit after the command. This feature does not
 change Foundit's About/summary field, and it does not search for or apply to
 Foundit jobs.
 
-To update Naukri and every other enabled platform without starting the
-Naukri job search, run:
-
-   .venv\Scripts\python.exe main.py --update-all-profiles
-
-The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
-this command daily at 09:00 Asia/Kolkata. Keep your Windows account signed in
-so the saved browser sessions can be used. The task requires an internet
-connection and does not bypass login, OTP, CAPTCHA, or other checks.
+`--update-all-profiles` is interactive and asks you to type `APPLY` for
+supported field edits; do not schedule it unattended. For daily headline/About
+proposals, follow the Task Scheduler steps in HOW_TO_RUN_PROFILE_TEXT.txt.
+Those proposals are not posted automatically.
 
 Resume upload and profile-field updates have separate state files:
 data\foundit_resume_upload.json and data\foundit_profile_update.json. If the

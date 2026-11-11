@@ -3,6 +3,16 @@ NAUKRI RESUME AND PROFILE GUIDE
 
 From the project directory in PowerShell:
 
+   .venv\Scripts\python.exe main.py --search-naukri
+
+This searches Naukri using the configured roles, locations, posting-age
+window, and resume-based matching, then adds suitable listings to the shared
+local review queue. To review jobs interactively, run the command without
+--headless-run. Instahyre can be searched separately with
+--search-instahyre. Job searching on the other configured platforms is not
+implemented yet. This explicit search command does not upload resumes or
+update profile fields.
+
    .venv\Scripts\python.exe main.py --setup-naukri-session
 
 Sign in yourself in the browser and press Enter in PowerShell. The saved
@@ -16,11 +26,11 @@ job search, run:
 
 The command uploads a changed resume and updates the sections selected in
 `naukri_profile.profile_update_sections` in config\job_preferences.yaml. The
-current configuration selects the headline, key skills, and employment.
-Projects are not selected. Profile-field updates are tracked in
-data\naukri_profile_update.json and normally run when the source resume
-changes. To force a fresh profile-field check on every enabled platform,
-including Naukri, run:
+command displays a proposal and changes those fields only after you type
+`APPLY`. The current configuration selects the headline, key skills, and
+employment. Projects are not selected. Profile-field updates are tracked in
+data\naukri_profile_update.json after approval. To force a fresh profile-field
+check on every enabled platform, including Naukri, run:
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
@@ -43,8 +53,9 @@ The current Naukri updater does not edit the About/profile-summary section.
 Review the headline, skills, and employment history on Naukri after the
 command.
 
-The normal command `python main.py` also attempts the configured Naukri
-resume/profile update, then continues with the Naukri job search. The daily
+The normal command `python main.py` can upload a changed source resume and
+save a profile-field proposal, but does not apply profile-field edits without
+confirmation. It then continues with the Naukri job search. The daily
 job-search scheduler command is:
 
    .venv\Scripts\python.exe main.py --schedule
@@ -54,9 +65,11 @@ job search, run:
 
    .venv\Scripts\python.exe main.py --update-all-profiles
 
-The Windows Task Scheduler task "Naukri Foundit Daily Profile Update" runs
-that profile-only command daily at 09:00 Asia/Kolkata. Keep your Windows
-account signed in so the saved browser sessions can be used.
+The `--update-all-profiles` command is interactive and asks you to type
+`APPLY` for supported field edits; do not schedule it unattended. For daily
+headline/About proposals, use the Task Scheduler steps in
+HOW_TO_RUN_PROFILE_TEXT.txt. Those files are proposals and are not posted
+automatically.
 
 If the site form changes, the AI cannot extract valid data, or Naukri asks for
 verification, the command reports the failure and does not mark the profile
@@ -67,3 +80,12 @@ guidance.
 
 The app does not bypass login, CAPTCHA, OTP, or other security checks and
 cannot guarantee interviews or shortlisting.
+
+To generate a daily headline/About proposal using a custom prompt, see
+HOW_TO_RUN_PROFILE_TEXT.txt. Generated text is not posted automatically.
+After reviewing the latest proposal, apply its headline only with:
+
+   .venv\Scripts\python.exe main.py --apply-profile-text naukri
+
+Type APPLY at the confirmation prompt. This command does not edit the About
+section; copy approved About text manually.

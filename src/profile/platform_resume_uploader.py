@@ -1417,6 +1417,15 @@ class CandidatePlatformBrowser:
         for entry in entries:
             title = entry["title"].strip()
             if (title.casefold(),) in existing:
+                description = entry.get("description")
+                if isinstance(description, str) and description.strip():
+                    changed = (
+                        self._update_foundit_existing_project(
+                            title,
+                            description.strip(),
+                        )
+                        or changed
+                    )
                 continue
 
             modal = self._open_foundit_modal("Add project")
@@ -1432,6 +1441,49 @@ class CandidatePlatformBrowser:
             existing.add((title.casefold(),))
             changed = True
         return changed
+
+    def _update_foundit_existing_project(
+        self,
+        title: str,
+        description: str,
+    ) -> bool:
+        edit_buttons = self.page.locator("#SECTION_EDIT_BUTTON")
+        for index in range(edit_buttons.count()):
+            edit_buttons.nth(index).click(timeout=10000)
+            modal = self._foundit_modal()
+            if self._foundit_modal_heading(modal).casefold() != "edit project":
+                self._close_foundit_modal(modal)
+                continue
+
+            existing_title = self._first_filled_value(modal, ("title",))
+            if existing_title.casefold() != title.casefold():
+                self._close_foundit_modal(modal)
+                continue
+
+            description_field = modal.locator("#description")
+            if description_field.count() != 1:
+                self._close_foundit_modal(modal)
+                raise RuntimeError(
+                    "Foundit's project description field could not be "
+                    "identified; the project was not changed."
+                )
+            current_description = description_field.input_value().strip()
+            if current_description == description:
+                self._close_foundit_modal(modal)
+                return False
+
+            try:
+                description_field.fill(description)
+                self._save_foundit_modal(modal)
+            except (PlaywrightError, RuntimeError, ValueError):
+                self._close_foundit_modal_if_open()
+                raise
+            return True
+
+        raise RuntimeError(
+            f"Foundit could not find the existing project '{title}' to "
+            "review its updated description."
+        )
 
     def _foundit_existing_records(
         self,

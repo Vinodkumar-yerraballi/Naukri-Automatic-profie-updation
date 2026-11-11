@@ -36,3 +36,6 @@ such as skills or About/summary, and it does not search or apply to Hirist
 jobs. The site must confirm the upload before it is recorded. Complete
 sign-in and security checks yourself, and verify the resume on Hirist after
 each update.
+
+To generate a reviewable Hirist headline/About proposal using a custom
+prompt, see HOW_TO_RUN_PROFILE_TEXT.txt. Copy approved text manually.

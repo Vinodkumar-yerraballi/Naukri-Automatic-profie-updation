@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -47,13 +48,22 @@ class ResumeProfileProposal:
         return {
             "created_at": datetime.now().astimezone().isoformat(),
             "source_resume": str(self.ai_service.resume_path),
+            "source_resume_sha256": self._resume_sha256(),
             "sections": sorted(requested),
             "data": data,
             "review_required": review_required,
             "unmatched_existing_records": "preserve",
         }
 
-    def save(self, proposal: dict, path: str | Path) -> Path:
+    def _resume_sha256(self) -> str:
+        hasher = hashlib.sha256()
+        with Path(self.ai_service.resume_path).open("rb") as resume_file:
+            for chunk in iter(lambda: resume_file.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    @staticmethod
+    def save(proposal: dict, path: str | Path) -> Path:
         proposal_path = Path(path)
         proposal_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = proposal_path.with_suffix(

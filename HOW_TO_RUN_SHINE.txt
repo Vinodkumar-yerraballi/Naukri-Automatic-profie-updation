@@ -1,5 +1,21 @@
-SHINE RESUME UPDATE GUIDE
-=========================
+SHINE JOB SEARCH AND RESUME UPDATE GUIDE
+========================================
+
+Run Shine job search separately from the Naukri search:
+
+   .venv\Scripts\python.exe main.py --search-shine
+
+The command uses roles, locations, posting-age limit, experience range, and
+the 75-point default job-to-resume match threshold from
+config\job_preferences.yaml. It skips postings with an unknown/older age and
+listings where a full job description cannot be verified. For each processed
+job it prints the match score. A factual resume draft is generated only when
+the score meets the configured threshold; it is saved locally and is not
+uploaded or submitted automatically. No applications are submitted.
+
+To generate a reviewable Shine headline/About draft, see
+HOW_TO_RUN_PROFILE_TEXT.txt. The supported Shine profile updater changes its
+summary from resume-derived text, not from the generated proposal.
 
 Run these commands from the project folder in PowerShell. The examples use
 the project's .venv virtual environment.
@@ -24,8 +40,9 @@ the project's .venv virtual environment.
 
 The command uploads the resume when its contents differ from the last
 confirmed upload. The upload state is stored in
-data\shine_resume_upload.json. It then updates supported profile fields from
-the resume and records that state in data\shine_profile_update.json. The
+data\shine_resume_upload.json. It displays the resume-supported profile-field
+proposal and updates supported fields only after you type `APPLY`. The
+approved update state is stored in data\shine_profile_update.json. The
 configured Shine login, upload, and profile-edit URLs are in
 config\job_preferences.yaml. The resume upload URL is
 https://www.shine.com/myshine/resume/upload. Shine uploads files up to 5 MB.
@@ -46,6 +63,6 @@ resume; those sections are left unchanged. Shine's summary editor has a
 at a word boundary. Use
 `.venv\Scripts\python.exe main.py --update-all-profiles` to force a fresh
 check of supported profile fields even if the resume file has not changed.
-The site must confirm each supported update before it is recorded. Complete
+This command is interactive and must not be scheduled unattended. Complete
 sign-in and security checks yourself, and verify the resume and profile
-details on Shine after each update.
+details on Shine after each approved update.

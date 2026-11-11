@@ -21,3 +21,5 @@ data/shine_resume_upload.json
 data/hirist_resume_upload.json
 data/wellfound_resume_upload.json
 data/processed/profile_update_proposal.json
+data/processed/profile_text/
+data/profile_text_history.json

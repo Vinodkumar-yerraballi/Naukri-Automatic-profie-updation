@@ -520,6 +520,96 @@ def test_shine_profile_preparation_does_not_require_a_page_wide_button():
     assert page.goto_arguments[1]["wait_until"] == "domcontentloaded"
 
 
+class FakeProjectField:
+    def __init__(self, value):
+        self.value = value
+        self.first = self
+
+    def count(self):
+        return 1
+
+    def input_value(self):
+        return self.value
+
+    def inner_text(self):
+        return self.value
+
+    def fill(self, value):
+        self.value = value
+
+
+class FakeProjectModal:
+    def __init__(self, title, description):
+        self.title = FakeProjectField(title)
+        self.description = FakeProjectField(description)
+        self.heading = FakeProjectField("Edit project")
+
+    def locator(self, selector):
+        if selector == "h1, h2, h3, h4, [role='heading']":
+            return self.heading
+        if selector == "#title":
+            return self.title
+        if selector == "#description":
+            return self.description
+        raise AssertionError(f"Unexpected modal selector: {selector}")
+
+
+class FakeProjectEditButtons:
+    def count(self):
+        return 1
+
+    def nth(self, index):
+        assert index == 0
+        return self
+
+    def click(self, timeout):
+        assert timeout == 10000
+
+
+class FakeProjectPage:
+    def locator(self, selector):
+        assert selector == "#SECTION_EDIT_BUTTON"
+        return FakeProjectEditButtons()
+
+
+def test_foundit_updates_changed_existing_project_description():
+    modal = FakeProjectModal("Analytics project", "Old description")
+    browser = CandidatePlatformBrowser("foundit")
+    browser.page = FakeProjectPage()
+    browser._foundit_modal = lambda: modal
+    browser._close_foundit_modal = lambda current_modal: None
+    saved = []
+    browser._save_foundit_modal = lambda current_modal: saved.append(True)
+
+    changed = browser._update_foundit_existing_project(
+        "Analytics project",
+        "Updated description",
+    )
+
+    assert changed is True
+    assert modal.description.value == "Updated description"
+    assert saved == [True]
+
+
+def test_foundit_preserves_unchanged_existing_project_description():
+    modal = FakeProjectModal("Analytics project", "Current description")
+    browser = CandidatePlatformBrowser("foundit")
+    browser.page = FakeProjectPage()
+    browser._foundit_modal = lambda: modal
+    browser._close_foundit_modal = lambda current_modal: None
+    saved = []
+    browser._save_foundit_modal = lambda current_modal: saved.append(True)
+
+    changed = browser._update_foundit_existing_project(
+        "Analytics project",
+        "Current description",
+    )
+
+    assert changed is False
+    assert modal.description.value == "Current description"
+    assert saved == []
+
+
 def test_shine_profile_preparation_rejects_login_redirect():
     page = FakePage()
     page.url = "https://www.shine.com/myshine/login/"

@@ -33,3 +33,6 @@ appears in Wellfound's Resume / CV editor, rather than expecting a generic
 "Resume uploaded" message. Some Wellfound applications may ask you to select
 a resume separately. Complete sign-in and security checks yourself, and
 verify the resume on Wellfound after each update.
+
+To generate a reviewable Wellfound headline/About proposal using a custom
+prompt, see HOW_TO_RUN_PROFILE_TEXT.txt. Copy approved text manually.
