@@ -4,3 +4,4 @@ playwright
 pypdf
 python-docx
 tzdata
+openpyxl
