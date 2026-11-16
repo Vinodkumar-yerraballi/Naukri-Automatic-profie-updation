@@ -454,6 +454,10 @@ class CompanyCareersScraper:
 
         for record in job_records:
             job_url = str(record.get("url", "")).strip()
+            # The supplied Accenture export left the locale token as {0}.
+            # The configured company careers page is the India English site.
+            if company_name.casefold() == "accenture" and "{0}" in job_url:
+                job_url = job_url.replace("{0}", "in-en")
             if not _valid_http_url(job_url):
                 errors.append({
                     "company": company_name,

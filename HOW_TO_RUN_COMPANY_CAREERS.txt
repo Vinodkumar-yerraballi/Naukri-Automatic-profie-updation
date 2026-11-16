@@ -10,8 +10,10 @@ Output files
 
 Run from the project folder in PowerShell
 1. .\.venv\Scripts\python.exe main.py --search-company-careers
-2. .\.venv\Scripts\python.exe scripts\export_company_careers_json.py
+2. .\.venv\Scripts\python.exe scripts\retry_company_careers_errors.py  (optional: retries prior failures)
+3. .\.venv\Scripts\python.exe scripts\export_company_careers_json.py
 
 The scraper reads public job URLs listed in config\company_careers.json under settings.seed_jobs_file. The current path points to company_india_jobs_flat.json. The grouped JSON contains the corresponding company/job source data and summary.
 
 Scores use config\profile.yaml and config\job_preferences.yaml. Resume Skill Coverage (%) is a separate skills-only comparison against data\resume.pdf. Jobs at exactly 70% are excluded; only scores above 70% appear in the JSON. Inaccessible URLs and invalid placeholders are recorded in the Excel and JSON scrape_errors list.
+
