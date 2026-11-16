@@ -32,6 +32,7 @@ from src.profile.profile_text_proposal import ProfileTextProposal
 from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
 from scripts.daily_job_report import write_headless_review_report
+from scripts.export_jobs_excel import export_jobs
 
 
 def _select_search_queries(
@@ -1681,6 +1682,11 @@ if __name__ == "__main__":
         ),
     )
     actions.add_argument(
+        "--export-jobs-excel",
+        action="store_true",
+        help="Export locally collected jobs to data/reports/job_tracker.xlsx.",
+    )
+    actions.add_argument(
         "--search-naukri",
         action="store_true",
         help=(
@@ -1782,6 +1788,8 @@ if __name__ == "__main__":
         generate_profile_text(arguments.generate_profile_text)
     elif arguments.apply_profile_text:
         apply_profile_text(arguments.apply_profile_text)
+    elif arguments.export_jobs_excel:
+        export_jobs()
     elif arguments.search_naukri:
         main(update_profiles=False)
     elif arguments.search_instahyre:
