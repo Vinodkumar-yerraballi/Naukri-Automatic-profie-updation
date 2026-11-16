@@ -40,7 +40,8 @@ jobs:
             tests/test_daily_scheduler.py \
             tests/test_freshness_matcher.py \
             tests/test_education_matcher.py \
-            tests/test_daily_job_report.py
+            tests/test_daily_job_report.py \\
+            tests/test_export_jobs_excel.py
 
   # Live Naukri browsing needs an authenticated local profile and is not reliable on hosted CI.
   # Run this report manually with workflow_dispatch when required.
