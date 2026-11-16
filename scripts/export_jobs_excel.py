@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -131,12 +132,14 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
         )
         sheet.add_table(table)
 
-    sheet["F1"].comment = (
-        "This is the project's job-relevance match score, not an ATS score."
+    sheet["F1"].comment = Comment(
+        "This is the project's job-relevance match score, not an ATS score.",
+        "Job Tracker",
     )
-    sheet["K1"].comment = (
+    sheet["K1"].comment = Comment(
         "Click to open the original job page. This link does not submit an "
-        "application or bypass the project's individual approval step."
+        "application or bypass the project's individual approval step.",
+        "Job Tracker",
     )
 
     guide = workbook.create_sheet("Read Me")
