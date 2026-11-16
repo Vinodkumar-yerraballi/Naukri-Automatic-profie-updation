@@ -42,8 +42,10 @@ jobs:
             tests/test_education_matcher.py \
             tests/test_daily_job_report.py
 
+  # Live Naukri browsing needs an authenticated local profile and is not reliable on hosted CI.
+  # Run this report manually with workflow_dispatch when required.
   daily-job-report:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
