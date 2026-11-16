@@ -22,6 +22,20 @@ The project also provides Playwright-based resume uploads and selected profile-f
 
 > This tool helps organize job-search work; it does not guarantee interviews or job offers. Review generated resume and profile content before using it.
 
+## Beginner command guide and Excel job tracker
+
+New to the project? Start with the Word-compatible [command-by-command guide](HOW_TO_RUN_PROJECT.doc). It explains Windows setup, browser sign-in, each supported command, job review, profile updates, scheduling, and troubleshooting without requiring you to read the older TXT files first.
+
+After collecting jobs, create an Excel tracker:
+
+```powershell
+.venv\Scripts\python.exe main.py --export-jobs-excel
+```
+
+The workbook is generated at `data/reports/job_tracker.xlsx`. It includes job title, company, source platform, location, experience, project match score, stored key skills, status, date found, job URL, and a green **APPLY — OPEN JOB** hyperlink. A second sheet explains how to use it.
+
+**Important:** The Excel APPLY link opens the original job listing; it does not submit an application. For a supported Naukri one-step application, return to the interactive command `python main.py`, review the job and resume, and approve that individual job in the terminal. The match score is the project's relevance score, not an employer ATS score. Export again after a search to refresh the workbook.
+
 ## What it does
 
 1. Searches Naukri for the configured roles and locations, or runs the
