@@ -23,3 +23,25 @@ data/wellfound_resume_upload.json
 data/processed/profile_update_proposal.json
 data/processed/profile_text/
 data/profile_text_history.json
+
+# Python bytecode, test output, and build artifacts
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local runtime databases, logs, and generated reports
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.log
+data/reports/
+
+# Browser profiles and authentication/session state
+data/*_browser_profile/
+data/*_session_state/
+data/*_session_state.json
