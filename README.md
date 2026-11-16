@@ -1,25 +1,26 @@
-# Job Pipeline and Resume Updates
+# Naukri Job Automation & AI Resume Assistant
 
-Find recent Naukri and Shine listings or run an opt-in Instahyre search,
-compare jobs with your candidate profile, and prepare job-specific resume
-drafts for your review. Daily AI-generated headline and About proposals can be created for
-each configured platform and reviewed before you post them. The project can
-also upload a changed source resume to signed-in
-Naukri, Foundit, Indeed, Shine, Hirist, and Wellfound profiles.
+<p align="center">
+  <strong>Discover relevant jobs. Match your skills. Prepare better resumes. Stay in control.</strong>
+</p>
 
-This is a **review-first** job assistant. It requires your terminal approval
-for each job before attempting a supported one-step Naukri application.
-Profile-field proposals are saved for review; supported field edits require
-you to type `APPLY`. Naukri supports its resume headline and key skills and
-adding resume-supported projects. Foundit supports skills, work experience,
-and projects. Shine supports its summary, skills, and selected work details.
-Indeed, Hirist, and Wellfound currently support resume uploads only. Naukri
-remains the default job search; Instahyre and Shine searches are started
-separately and never submit applications.
+<p align="center">
+  Python · Playwright · Web Scraping · SQLite · LLM Integration · Resume Automation
+</p>
 
-> A stronger profile comes from clear, truthful evidence of your work. This
-> tool can help organize that evidence and target relevant roles, but it cannot
-> guarantee interviews or job offers.
+<p align="center">
+  <a href="https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation">View repository</a>
+</p>
+
+[![GitHub Actions](https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/actions/workflows/daily-tests.yml/badge.svg)](https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/actions/workflows/daily-tests.yml)
+
+A Python-based, review-first job-search and resume assistant. It searches configured roles on Naukri (with separate Instahyre and Shine search commands), evaluates listings against a candidate profile, stores opportunities locally, and prepares job-specific DOCX/TXT resume drafts for human review.
+
+The project also provides Playwright-based resume uploads and selected profile-field updates for supported platforms. Applications are not submitted automatically by default: each supported Naukri application requires individual approval.
+
+**Independent project:** Job-site interfaces, login sessions, and anti-bot checks can change. Live browsing is not guaranteed in hosted CI environments; authenticated job collection is best run locally with a browser profile that you sign into yourself.
+
+> This tool helps organize job-search work; it does not guarantee interviews or job offers. Review generated resume and profile content before using it.
 
 ## What it does
 
