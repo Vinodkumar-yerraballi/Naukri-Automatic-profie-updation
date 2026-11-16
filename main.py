@@ -1,7 +1,8 @@
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
@@ -9,8 +10,10 @@ from playwright.sync_api import Error as PlaywrightError
 from src.ingestion.naukri_browser import NaukriBrowser
 from src.ingestion.instahyre_browser import InstahyreBrowser
 from src.ingestion.shine_job_search import ShineJobSearch
+from src.ingestion.company_careers import CompanyCareersScraper
 from src.ingestion.job_collector import JobCollector
 from src.matching.job_evaluator import JobEvaluator
+from src.extraction.jd_extractor import JDExtractor
 from src.database.job_repository import JobRepository
 from src.config.config_manager import ConfigManager
 from src.profile.profile_updater import ProfileManager
@@ -33,6 +36,7 @@ from src.pipelines.daily_scheduler import run_daily
 from src.matching.freshness_matcher import FreshnessMatcher
 from scripts.daily_job_report import write_headless_review_report
 from scripts.export_jobs_excel import export_jobs
+from scripts.company_careers_report import export_company_careers_report
 
 
 def _select_search_queries(
@@ -140,6 +144,250 @@ def generate_profile_text(platform: str) -> None:
             f"{selected_platform.title()} profile text proposal ready "
             f"for review: {output_path}"
         )
+
+
+def run_company_careers_search() -> None:
+    """Search configured public company career pages and export scored jobs."""
+    config_path = Path("config/company_careers.json")
+    try:
+        careers_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Could not load company careers configuration: {config_path}"
+        ) from error
+
+    if not isinstance(careers_config, dict):
+        raise ValueError(
+            "The company careers configuration must contain a JSON object."
+        )
+    settings = careers_config.get("settings", {})
+    if not isinstance(settings, dict):
+        raise ValueError(
+            "The settings property in config/company_careers.json "
+            "must be an object."
+        )
+    if not settings.get("enabled", True):
+        raise RuntimeError(
+            "Company careers search is disabled in config/company_careers.json."
+        )
+    companies = careers_config.get("companies", [])
+    if not isinstance(companies, list):
+        raise ValueError(
+            "The companies property in config/company_careers.json "
+            "must be a list."
+        )
+    if any(not isinstance(company, dict) for company in companies):
+        raise ValueError(
+            "Each item in the companies list must be a JSON object."
+        )
+    enabled_companies = [
+        company for company in companies
+        if isinstance(company, dict) and company.get("enabled", True)
+    ]
+    if not enabled_companies:
+        raise RuntimeError(
+            "Add at least one company and careers_url to "
+            "config/company_careers.json, then rerun this command."
+        )
+
+    search_config = ConfigManager().get_job_search_config()
+    experience_config = search_config.get("experience", {})
+    profile_manager = ProfileManager("config/profile.yaml")
+    profile_manager.load_profile()
+    evaluator = JobEvaluator(
+        candidate_skills=profile_manager.get_all_skills(),
+        target_roles=profile_manager.get_target_roles(),
+        preferred_locations=search_config.get("locations", []),
+        preferred_work_modes=search_config.get("work_modes", []),
+        candidate_min_experience=experience_config.get("minimum", 0),
+        candidate_max_experience=experience_config.get("maximum", 2),
+        candidate_education=profile_manager.get_education(),
+    )
+    try:
+        minimum_score = float(settings.get("minimum_match_score", 70))
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "minimum_match_score must be a number from 0 to 100."
+        ) from error
+    if not 0 <= minimum_score <= 100:
+        raise ValueError("minimum_match_score must be a number from 0 to 100.")
+    seed_jobs_by_company = {}
+    seed_jobs_file = settings.get("seed_jobs_file")
+    if seed_jobs_file:
+        seed_path = Path(seed_jobs_file)
+        try:
+            seed_rows = json.loads(seed_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                f"Could not load seed job data: {seed_path}"
+            ) from error
+        if not isinstance(seed_rows, list):
+            raise ValueError(f"Seed job data must be a JSON list: {seed_path}")
+        for seed in seed_rows:
+            if not isinstance(seed, dict):
+                raise ValueError(
+                    f"Every seed job must be a JSON object: {seed_path}"
+                )
+            company_key = str(seed.get("company", "")).strip().casefold()
+            if company_key:
+                seed_jobs_by_company.setdefault(company_key, []).append(seed)
+        print(
+            f"Loaded {len(seed_rows)} job records from {seed_path}; "
+            "reading their public job-detail URLs."
+        )
+
+    scraped_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    valid_companies = []
+    company_results = []
+    for company_config in enabled_companies:
+        company_name = str(company_config.get("company", "")).strip()
+        careers_url = str(company_config.get("careers_url", "")).strip()
+        if not company_name or not careers_url:
+            company_results.append({
+                "company": company_name or "Unspecified company",
+                "careers_url": careers_url,
+                "status": "Failed",
+                "details": "Both company and careers_url are required.",
+            })
+            print(
+                f"Skipping invalid company entry: {company_name or careers_url}"
+            )
+            continue
+        valid_companies.append(company_config)
+
+    def process_company(company_config):
+        company_name = str(company_config["company"]).strip()
+        careers_url = str(company_config["careers_url"]).strip()
+        scraper = CompanyCareersScraper(
+            request_delay_seconds=settings.get("request_delay_seconds", 2),
+            max_pages_per_company=settings.get("max_pages_per_company", 10),
+            max_jobs_per_company=settings.get("max_jobs_per_company", 50),
+        )
+        seed_rows = seed_jobs_by_company.get(company_name.casefold(), [])
+        if seed_rows:
+            scraped_jobs, pages_visited, errors = scraper.scrape_job_urls(
+                company_name,
+                seed_rows,
+            )
+        else:
+            scraped_jobs, pages_visited = scraper.scrape_company(
+                company_name,
+                careers_url,
+            )
+            errors = []
+
+        company_jobs = []
+        for scraped_job in scraped_jobs:
+            description = scraped_job.get("description", "")
+            extracted = JDExtractor(description).extract_all()
+            job = {
+                **extracted,
+                **scraped_job,
+                "skills": list(dict.fromkeys(
+                    extracted.get("skills", [])
+                    + scraped_job.get("skills", [])
+                )),
+            }
+            posted = str(job.get("posted", "") or "")
+            try:
+                posted_date = date.fromisoformat(posted[:10])
+                age_days = max(0, (date.today() - posted_date).days)
+                job["posted"] = "today" if age_days == 0 else (
+                    f"{age_days} days"
+                )
+            except ValueError:
+                pass
+            evaluation = evaluator.evaluate(job)
+            skill_match = evaluation["skill_match"]
+            job.update({
+                "match_score": evaluation["final_score"],
+                "matching_skills": skill_match["matched_skills"],
+                "missing_skills": skill_match["missing_skills"],
+                "scraped_at": scraped_at,
+            })
+            company_jobs.append(job)
+
+        details = ""
+        if errors:
+            details = (
+                f"{len(errors)} job URL(s) could not be read; see "
+                "Scrape Errors."
+            )
+        elif not company_jobs:
+            details = (
+                "No job postings were extracted. JavaScript-only pages may "
+                "need a site-specific adapter."
+            )
+        status = (
+            "Partial"
+            if errors and company_jobs
+            else "Failed"
+            if errors
+            else "Complete"
+        )
+        return {
+            "jobs": company_jobs,
+            "errors": errors,
+            "result": {
+                "company": company_name,
+                "careers_url": careers_url,
+                "status": status,
+                "pages_visited": pages_visited,
+                "jobs_found": len(company_jobs),
+                "matched_jobs": sum(
+                    job["match_score"] > minimum_score
+                    for job in company_jobs
+                ),
+                "details": details,
+            },
+        }
+
+    all_jobs = []
+    job_errors = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(process_company, company_config): company_config
+            for company_config in valid_companies
+        }
+        for future in as_completed(futures):
+            company_config = futures[future]
+            try:
+                result = future.result()
+            except (RuntimeError, ValueError, TypeError) as error:
+                result = {
+                    "jobs": [],
+                    "errors": [],
+                    "result": {
+                        "company": company_config.get("company", ""),
+                        "careers_url": company_config.get(
+                            "careers_url",
+                            "",
+                        ),
+                        "status": "Failed",
+                        "details": f"{type(error).__name__}: {error}",
+                    },
+                }
+            all_jobs.extend(result["jobs"])
+            job_errors.extend(result["errors"])
+            company_results.append(result["result"])
+            print(
+                f"{result['result']['company']}: "
+                f"{result['result']['jobs_found']} jobs extracted, "
+                f"{result['result']['matched_jobs']} above threshold; "
+                f"{result['result']['status']}."
+            )
+
+    output_path = export_company_careers_report(
+        all_jobs,
+        company_results,
+        minimum_score=minimum_score,
+        output_path=settings.get(
+            "output_path",
+            "data/reports/company_careers_jobs.xlsx",
+        ),
+        job_errors=job_errors,
+    )
+    print(f"Review the separate company careers workbook: {output_path}")
 
 
 def apply_profile_text(platform: str) -> None:
@@ -1687,6 +1935,14 @@ if __name__ == "__main__":
         help="Export locally collected jobs to data/reports/job_tracker.xlsx.",
     )
     actions.add_argument(
+        "--search-company-careers",
+        action="store_true",
+        help=(
+            "Search configured company careers pages and export jobs scoring "
+            "above the configured threshold."
+        ),
+    )
+    actions.add_argument(
         "--search-naukri",
         action="store_true",
         help=(
@@ -1790,6 +2046,8 @@ if __name__ == "__main__":
         apply_profile_text(arguments.apply_profile_text)
     elif arguments.export_jobs_excel:
         export_jobs()
+    elif arguments.search_company_careers:
+        run_company_careers_search()
     elif arguments.search_naukri:
         main(update_profiles=False)
     elif arguments.search_instahyre:

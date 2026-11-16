@@ -1,0 +1,15 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\fs32\b Company Career Jobs: Run and Review\b0\fs22\par\par
+\b Input files\b0\par
+C:\\Users\\vinod\\Downloads\\company_india_jobs.json (company-grouped source)\par
+C:\\Users\\vinod\\Downloads\\company_india_jobs_flat.json (1,233 job URLs used by the scraper)\par\par
+\b Output files\b0\par
+data\\reports\\company_careers_jobs.xlsx: descriptions, scores, matched and missing skills, resume skill coverage, company summary, and scrape errors.\par
+data\\reports\\company_careers_matches_over_70.json: jobs scoring strictly above 70%, plus scrape errors.\par\par
+\b Run from the project folder in PowerShell\b0\par
+1. .\\.venv\\Scripts\\python.exe main.py --search-company-careers\par
+2. .\\.venv\\Scripts\\python.exe scripts\\export_company_careers_json.py\par\par
+The scraper reads the public job URLs listed in config\\company_careers.json under settings.seed_jobs_file. The current path points to company_india_jobs_flat.json.\par\par
+Scores use config\\profile.yaml and config\\job_preferences.yaml. Resume Skill Coverage is a separate skills-only comparison against data\\resume.pdf. Exactly 70% is excluded; only scores above 70% appear in the JSON. Unreadable URLs and invalid placeholders are recorded as scrape errors.\par
+}

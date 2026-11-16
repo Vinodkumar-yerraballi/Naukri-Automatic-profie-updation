@@ -1,0 +1,122 @@
+{
+  "created_at": "2026-11-13T21:35:14.586529+05:30",
+  "source_resume": "data\\resume.pdf",
+  "source_resume_sha256": "20c68d230a4168aea143cdc628418840511dcfefc6811b414c4b189ebbebc26a",
+  "sections": [
+    "employment",
+    "projects",
+    "skills"
+  ],
+  "data": {
+    "skills": [
+      "SQL",
+      "Python",
+      "Snowflake",
+      "Databricks",
+      "Power BI",
+      "GenAI",
+      "LLM APIs",
+      "ETL/ELT",
+      "Data Profiling",
+      "Data Validation",
+      "Data Quality Checks",
+      "Data Lineage",
+      "Schema Documentation",
+      "Feature Engineering",
+      "Statistical Analysis",
+      "Web Scraping",
+      "Git",
+      "Agile"
+    ],
+    "employment": [
+      {
+        "title": "Associate \u2013 Data Crawling (AI Data Pipelines)",
+        "company": "Rubick.AI",
+        "location": "Bengaluru, India",
+        "start_date": "Aug 2026",
+        "end_date": "Present",
+        "is_current": true,
+        "employment_type": "Full-Time",
+        "department": "Data Engineering",
+        "industry": "Data Engineering",
+        "description": "Monitor and quality-check high-volume, multi-source Python/Scrapy ingestion pipelines end-to-end, catching malformed and duplicate records before production delivery and reducing downstream data-quality escalations.",
+        "skills": [
+          "ETL/ELT",
+          "Data Profiling",
+          "Data Validation",
+          "Data Quality Checks",
+          "Data Lineage",
+          "Schema Documentation"
+        ]
+      },
+      {
+        "title": "Data Analyst Intern",
+        "company": "British Airways",
+        "location": "Bengaluru, India",
+        "start_date": "Feb 2023",
+        "end_date": "Present",
+        "is_current": false,
+        "employment_type": "Part-Time",
+        "department": "Data Analytics",
+        "industry": "Data Analytics",
+        "description": "Built an end-to-end NLP text-classification pipeline for customer feedback (preprocessing, feature engineering, evaluation), lifting classification accuracy by 25%.",
+        "skills": [
+          "NLP",
+          "Feature Engineering",
+          "Statistical Analysis",
+          "Data Transformation",
+          "Data Cleansing"
+        ]
+      },
+      {
+        "title": "Machine Learning Intern",
+        "company": "The Spark Foundation",
+        "location": "Bengaluru, India",
+        "start_date": "Oct 2022",
+        "end_date": "Nov 2022",
+        "is_current": false,
+        "employment_type": "Part-Time",
+        "department": "Machine Learning",
+        "industry": "Machine Learning",
+        "description": "Built, tested and validated 5+ ML models (classification, regression, clustering) in Python and scikit-learn, achieving 90% average accuracy.",
+        "skills": [
+          "ML Models",
+          "Classification",
+          "Regression",
+          "Clustering",
+          "Scikit-learn"
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "title": "Diabetes Prediction \u2013 ML Classification Pipeline",
+        "description": "Resolved class imbalance with SMOTE and threshold tuning, cutting false negatives from 508 to 289 (43% sensitivity gain).",
+        "skills": [
+          "ML Classification",
+          "Class Imbalance",
+          "SMOTE",
+          "Threshold Tuning"
+        ]
+      },
+      {
+        "title": "Sales Analysis Dashboard",
+        "description": "Built KPI, trend and geo-map views on a star-schema data model; Power Query transformations improved data accuracy by 15% and reduced manual reporting effort.",
+        "skills": [
+          "Power BI",
+          "DAX",
+          "Power Query",
+          "Data Visualization",
+          "Data Transformation"
+        ]
+      }
+    ],
+    "headline": null,
+    "certifications": [],
+    "total_experience": null,
+    "summary": null,
+    "education": []
+  },
+  "review_required": true,
+  "unmatched_existing_records": "preserve"
+}

@@ -1,0 +1,163 @@
+{
+  "settings": {
+    "enabled": true,
+    "minimum_match_score": 70,
+    "max_pages_per_company": 10,
+    "max_jobs_per_company": 50,
+    "request_delay_seconds": 2,
+    "seed_jobs_file": "C:\\Users\\vinod\\Downloads\\company_india_jobs_flat.json",
+    "output_path": "data/reports/company_careers_jobs.xlsx"
+  },
+  "companies": [
+    {
+      "company": "Cognizant",
+      "careers_url": "https://careers.cognizant.com/india-en/",
+      "enabled": true
+    },
+    {
+      "company": "Accenture",
+      "careers_url": "https://www.accenture.com/in-en/careers/jobsearch",
+      "enabled": true
+    },
+    {
+      "company": "IBM",
+      "careers_url": "https://www.ibm.com/careers/search",
+      "enabled": true
+    },
+    {
+      "company": "Zensar Technologies",
+      "careers_url": "https://www.zensar.com/careers",
+      "enabled": true
+    },
+    {
+      "company": "Tata Elxsi",
+      "careers_url": "https://www.tataelxsi.com/careers/job-openings",
+      "enabled": true
+    },
+    {
+      "company": "Cybage Software",
+      "careers_url": "https://www.cybage.com/careers/open-positions",
+      "enabled": true
+    },
+    {
+      "company": "Zoho Corporation",
+      "careers_url": "https://www.zoho.com/careers/",
+      "enabled": true
+    },
+    {
+      "company": "Freshworks",
+      "careers_url": "https://careers.smartrecruiters.com/Freshworks",
+      "enabled": true
+    },
+    {
+      "company": "Microsoft",
+      "careers_url": "https://apply.careers.microsoft.com/careers?hl=en&start=0&pid=1970393557006256&sort_by=timestamp",
+      "enabled": true
+    },
+    {
+      "company": "Meta",
+      "careers_url": "https://www.metacareers.com/jobsearch/",
+      "enabled": true
+    },
+    {
+      "company": "Samsung R&D Institute India",
+      "careers_url": "https://sec.wd3.myworkdayjobs.com/Samsung_Careers",
+      "enabled": true
+    },
+    {
+      "company": "PhonePe",
+      "careers_url": "https://www.phonepe.com/careers/job-openings/",
+      "enabled": true
+    },
+    {
+      "company": "Paytm",
+      "careers_url": "https://jobs.lever.co/paytm",
+      "enabled": true
+    },
+    {
+      "company": "Razorpay",
+      "careers_url": "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited",
+      "enabled": true
+    },
+    {
+      "company": "Urban Company",
+      "careers_url": "https://careers.urbancompany.com/",
+      "enabled": true
+    },
+    {
+      "company": "Lenskart",
+      "careers_url": "https://ainterviews.com/job_board/lenskart_ho/",
+      "enabled": true
+    },
+    {
+      "company": "ICICI Bank",
+      "careers_url": "https://careers.icici.bank.in/CareerApplicant/Career/Home/",
+      "enabled": true
+    },
+    {
+      "company": "Aditya Birla Capital",
+      "careers_url": "https://www.adityabirlacapital.com/careers",
+      "enabled": true
+    },
+    {
+      "company": "EY India",
+      "careers_url": "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch&local=en_US",
+      "enabled": true
+    },
+    {
+      "company": "Boston Consulting Group",
+      "careers_url": "https://careers.bcg.com/global/en/search-results",
+      "enabled": true
+    },
+    {
+      "company": "Genpact",
+      "careers_url": "https://genpact.wd108.myworkdayjobs.com/External_Careers",
+      "enabled": true
+    },
+    {
+      "company": "EXL Service",
+      "careers_url": "https://www.exlservice.com/careers",
+      "enabled": true
+    },
+    {
+      "company": "Shiprocket",
+      "careers_url": "https://careers.shiprocket.in/",
+      "enabled": true
+    },
+    {
+      "company": "Zetwerk",
+      "careers_url": "https://www.zetwerk.com/careers/",
+      "enabled": true
+    },
+    {
+      "company": "Postman",
+      "careers_url": "https://www.postman.com/company/careers/open-positions/",
+      "enabled": true
+    },
+    {
+      "company": "Darwinbox",
+      "careers_url": "https://dbx.darwinbox.in/ms/candidatev2/main/careers/allJobs",
+      "enabled": true
+    },
+    {
+      "company": "BrowserStack",
+      "careers_url": "https://browserstack.wd3.myworkdayjobs.com/External",
+      "enabled": true
+    },
+    {
+      "company": "Druva",
+      "careers_url": "https://www.druva.com/why-druva/explore/careers",
+      "enabled": true
+    },
+    {
+      "company": "Haptik",
+      "careers_url": "https://haptik.freshteam.com/jobs?__hstc=233858945.0eecb6901547789a76a8150b48139b47.1650872173205.1656650197197.1656654941825.85&__hssc=233858945.2.1656654941825&__hsfp=&hsCtaTracking=be1d0f38-8578-466c-a65e-7dba125d958a%7C852c3dbe-26c9-4a01-a174-ad02a06686d9",
+      "enabled": true
+    },
+    {
+      "company": "Target Corporation India",
+      "careers_url": "https://indiajobs.target.com/search-jobs?k=&fl=1269750",
+      "enabled": true
+    }
+  ]
+}

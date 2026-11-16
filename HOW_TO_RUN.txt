@@ -61,6 +61,26 @@ COMMANDS YOU WILL USE
 
    .venv\Scripts\python.exe main.py --search-shine
 
+   To search public company careers pages:
+
+   1. Add each company name and public careers-page URL to
+      config\company_careers.json.
+   2. Run:
+
+      .venv\Scripts\python.exe main.py --search-company-careers
+
+   The command uses the candidate profile and the existing job evaluator.
+   It saves all extracted jobs, jobs scoring strictly above 70%, a
+   company summary, and matching/missing skills to
+   data\reports\company_careers_jobs.xlsx. The threshold, page/job limits,
+   request delay, and report path are configurable in the JSON file.
+   The scraper respects robots.txt and only reads public pages; it does not
+   sign in, bypass CAPTCHA, submit applications, or add jobs to the
+   application review queue. It extracts schema.org JobPosting data and
+   recognizable job links; JavaScript-only pages may need a site-specific
+   adapter. Replace the empty companies array in the sample configuration
+   with the URLs you want to search.
+
    Shine results are scored against your resume. Listings with unknown/old
    posting ages or without a full job description are skipped. The default
    draft threshold is a 75% job-to-resume match, configurable in
