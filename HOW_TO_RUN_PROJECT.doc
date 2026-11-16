@@ -11,7 +11,7 @@ The Excel tracker is an export of jobs already collected by the project. It does
 \par
 \b\fs28 2. First-time setup (Windows PowerShell)\par
 \b0\fs22 Open PowerShell and change to your project folder. Replace the example path if you saved the project elsewhere:\par
-\pard\li360\f1\fs20 cd "C:\Users\vinod\OneDrive\Desktop\Naukri-Automatic-profie-updation"\par
+\pard\li360\f1\fs20 cd "C:/Users/vinod/OneDrive/Desktop/Naukri-Automatic-profie-updation"\par
 \pard\li0\f0\fs22 Create and activate a virtual environment:\par
 \pard\li360\f1\fs20 python -m venv .venv\par
 .venv\Scripts\Activate.ps1\par
@@ -19,31 +19,31 @@ The Excel tracker is an export of jobs already collected by the project. It does
 \pard\li360\f1\fs20 python -m pip install --upgrade pip\par
 python -m pip install -r requirements.txt\par
 python -m playwright install chromium\par
-\pard\li0\f0\fs22 If PowerShell blocks activation, you can run project commands directly with .venv\\Scripts\\python.exe without activating the environment.\par
+\pard\li0\f0\fs22 If PowerShell blocks activation, you can run project commands directly with .venv/Scripts/python.exe without activating the environment.\par
 \par
 \b\fs28 3. Sign in to job platforms (run once per platform)\par
 \b0\fs22 Run the required session command, sign in yourself in the browser window, complete any verification, return to PowerShell, and press Enter. Repeat if the session expires.\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --setup-naukri-session\par
-.venv\Scripts\python.exe main.py --setup-foundit-session\par
-.venv\Scripts\python.exe main.py --setup-indeed-session\par
-.venv\Scripts\python.exe main.py --setup-shine-session\par
-.venv\Scripts\python.exe main.py --setup-hirist-session\par
-.venv\Scripts\python.exe main.py --setup-wellfound-session\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --setup-naukri-session\par
+.venv/Scripts/python.exe main.py --setup-foundit-session\par
+.venv/Scripts/python.exe main.py --setup-indeed-session\par
+.venv/Scripts/python.exe main.py --setup-shine-session\par
+.venv/Scripts/python.exe main.py --setup-hirist-session\par
+.venv/Scripts/python.exe main.py --setup-wellfound-session\par
 \pard\li0\f0\fs22 Browser profiles contain login sessions. Keep the data folder private. Never share passwords or session files. The automation does not bypass CAPTCHA, OTP, or security challenges.\par
 \par
 \b\fs28 4. Search for jobs\par
 \b0\fs22 Search Naukri using roles, locations, experience, freshness, and candidate details from the YAML configuration:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --search-naukri\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --search-naukri\par
 \pard\li0\f0\fs22 Search Instahyre separately:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --search-instahyre\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --search-instahyre\par
 \pard\li0\f0\fs22 Search Shine separately:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --search-shine\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --search-shine\par
 \pard\li0\f0\fs22 The project currently has job-search commands for Naukri, Instahyre, and Shine. Foundit, Indeed, Hirist, and Wellfound are used for resume uploads and supported profile operations; they are not job-search sources in this workflow.\par
 \par
 \b\fs28 5. Create the Excel job tracker\par
 \b0\fs22 After running one or more searches, export the local jobs database:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --export-jobs-excel\par
-\pard\li0\f0\fs22 The workbook is saved to data\\reports\\job_tracker.xlsx. Open it in Microsoft Excel. The Job Tracker sheet contains job title, company, platform, location, experience, match score, key skills, status, date found, job URL, and a green APPLY / OPEN JOB link. The Read Me sheet explains the steps.\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --export-jobs-excel\par
+\pard\li0\f0\fs22 The workbook is saved to data/reports/job_tracker.xlsx. Open it in Microsoft Excel. The Job Tracker sheet contains job title, company, platform, location, experience, match score, key skills, status, date found, job URL, and a green APPLY / OPEN JOB link. The Read Me sheet explains the steps.\par
 The green link opens the original job listing in your browser. It is not a macro and it does not submit an application. Excel cannot change the project's database by editing cells.\par
 \par
 \b\fs28 6. Understand the match score and skills\par
@@ -51,7 +51,7 @@ The green link opens the original job listing in your browser. It is not a macro
 \par
 \b\fs28 7. Review and apply to a Naukri job\par
 \b0\fs22 Start the interactive review queue:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py\par
 \pard\li0\f0\fs22 Review the job details and resume carefully. The interactive choices are:\par
 \pard\li360\f0\fs22\b A\b0  Approve this job. If auto_apply is enabled and the listing supports one clear Naukri one-step Apply action, the application workflow may attempt it.\par
 \b R\b0  Reject this job.\par
@@ -62,37 +62,37 @@ The Excel APPLY link only opens the job listing. To use the project's applicatio
 \par
 \b\fs28 8. Run without interactive review or schedule daily\par
 \b0\fs22 Create a non-interactive run and a review report:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --headless-run\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --headless-run\par
 \pard\li0\f0\fs22 Start the configured daily scheduler:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --schedule\par
-\pard\li0\f0\fs22 The configured schedule is in config\\job_preferences.yaml. Keep the computer awake, connected to the internet, and the process running. Scheduled/headless runs do not display the interactive approval queue and do not submit applications.\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --schedule\par
+\pard\li0\f0\fs22 The configured schedule is in config/job_preferences.yaml. Keep the computer awake, connected to the internet, and the process running. Scheduled/headless runs do not display the interactive approval queue and do not submit applications.\par
 \par
 \b\fs28 9. Resume and profile commands\par
-\b0\fs22 Put your current text-based PDF resume at data\\resume.pdf (or update the configured path). To create a profile-field proposal for review without changing a website:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --prepare-profile-update\par
+\b0\fs22 Put your current text-based PDF resume at data/resume.pdf (or update the configured path). To create a profile-field proposal for review without changing a website:\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --prepare-profile-update\par
 \pard\li0\f0\fs22 To upload a changed resume and update supported Naukri profile fields:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --update-naukri-profile\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --update-naukri-profile\par
 \pard\li0\f0\fs22 Update one supported platform:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --update-foundit-profile\par
-.venv\Scripts\python.exe main.py --update-indeed-profile\par
-.venv\Scripts\python.exe main.py --update-shine-profile\par
-.venv\Scripts\python.exe main.py --update-hirist-profile\par
-.venv\Scripts\python.exe main.py --update-wellfound-profile\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --update-foundit-profile\par
+.venv/Scripts/python.exe main.py --update-indeed-profile\par
+.venv/Scripts/python.exe main.py --update-shine-profile\par
+.venv/Scripts/python.exe main.py --update-hirist-profile\par
+.venv/Scripts/python.exe main.py --update-wellfound-profile\par
 \pard\li0\f0\fs22 Update all enabled platforms in one interactive run:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --update-all-profiles\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --update-all-profiles\par
 \pard\li0\f0\fs22 Profile field changes require the explicit confirmation described in the terminal. Review each proposed value. Supported fields vary by platform; Indeed, Hirist, and Wellfound currently support resume upload only.\par
 \par
 \b\fs28 10. Generate headline and About proposals\par
 \b0\fs22 Generate a proposal for one platform (replace PLATFORM with a supported name such as naukri, foundit, indeed, instahyre, shine, hirist, or wellfound):\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --generate-profile-text naukri\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --generate-profile-text naukri\par
 \pard\li0\f0\fs22 Generate for all enabled platforms:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --generate-profile-text all\par
-\pard\li0\f0\fs22 Review the dated files under data\\processed\\profile_text. Generation creates proposals; it does not publish them. The apply-profile-text command is available for supported editors and requires confirmation:\par
-\pard\li360\f1\fs20 .venv\Scripts\python.exe main.py --apply-profile-text naukri\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --generate-profile-text all\par
+\pard\li0\f0\fs22 Review the dated files under data/processed/profile_text. Generation creates proposals; it does not publish them. The apply-profile-text command is available for supported editors and requires confirmation:\par
+\pard\li360\f1\fs20 .venv/Scripts/python.exe main.py --apply-profile-text naukri\par
 \pard\li0\f0\fs22 Follow the confirmation prompt. Unsupported About fields must be copied manually where applicable.\par
 \par
 \b\fs28 11. Change job preferences\par
-\b0\fs22 Edit config\\profile.yaml to change candidate skills, education, experience, and target roles. Edit config\\job_preferences.yaml to change job search roles, locations, work modes, freshness, matching threshold, AI provider, enabled profile updates, and schedule settings. Edit config\\config.yaml for general paths, database, and logging. Keep API keys in a local .env file and never commit them.\par
+\b0\fs22 Edit config/profile.yaml to change candidate skills, education, experience, and target roles. Edit config/job_preferences.yaml to change job search roles, locations, work modes, freshness, matching threshold, AI provider, enabled profile updates, and schedule settings. Edit config/config.yaml for general paths, database, and logging. Keep API keys in a local .env file and never commit them.\par
 \par
 \b\fs28 12. Troubleshooting and safe use\par
 \b0\fs22 If a command says a browser session is missing or expired, run the matching --setup-PLATFORM-session command again and sign in yourself. If a site displays CAPTCHA, OTP, or a security challenge, complete it manually; do not attempt to bypass it. If the Excel file is open, close it before exporting again. Run a search before exporting if the database is empty. The workbook is a snapshot, so export again after new searches.\par
