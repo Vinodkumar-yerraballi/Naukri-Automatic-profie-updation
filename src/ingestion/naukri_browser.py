@@ -653,7 +653,22 @@ class NaukriBrowser:
                 f"Expected one visible Naukri '{aria_label}' editor, found "
                 f"{len(visible_buttons)}."
             )
-        visible_buttons[0].click(timeout=10000)
+        try:
+            visible_buttons[0].click(timeout=10000)
+        except PlaywrightError as first_error:
+            # Naukri can leave a success/feedback layer above the profile
+            # after the prior section is saved. Dismiss that transient layer
+            # and retry the editor control once before reporting a failure.
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(300)
+            try:
+                visible_buttons[0].click(timeout=10000)
+            except PlaywrightError as retry_error:
+                raise RuntimeError(
+                    f"Naukri's '{aria_label}' control remained blocked after "
+                    "dismissing the transient overlay. Close any profile "
+                    "message or modal and retry the update."
+                ) from retry_error
         self.page.wait_for_timeout(300)
         return self.page
 
@@ -758,8 +773,8 @@ class NaukriBrowser:
                 exact_option = self._naukri_exact_suggestion(skill, field)
                 if exact_option is None:
                     print(
-                        f"Naukri did not offer an exact key-skill match for "
-                        f"'{skill}'; it was skipped."
+                        f"SKIPPED: Naukri offered no exact key-skill "
+                        f"suggestion for '{skill}'."
                     )
                     skipped.append(skill)
                     continue
@@ -774,8 +789,8 @@ class NaukriBrowser:
                 }
                 if normalized_skill not in current_skills:
                     print(
-                        f"Naukri did not stage the exact key skill "
-                        f"'{skill}'; it was skipped."
+                        f"SKIPPED: Naukri did not stage the exact key "
+                        f"skill '{skill}'."
                     )
                     skipped.append(skill)
                     continue
@@ -789,18 +804,9 @@ class NaukriBrowser:
             self._close_naukri_editor()
             raise
         if skipped:
-            save_detail = (
-                f"Saved {len(added_skills)} other skill(s). "
-                if added_skills
-                else "No new skills were saved. "
-            )
-            raise RuntimeError(
-                save_detail
-                + "Naukri could not add these resume-supported key skills "
-                "because it did not offer or accept exact suggestions: "
+            print(
+                "Skipped key skills without an exact Naukri suggestion: "
                 + ", ".join(skipped)
-                + ". Existing skills were preserved; check Naukri's "
-                "skill limit or add these skills manually."
             )
         return bool(added_skills)
 
