@@ -16,6 +16,8 @@ def make_database(path):
             source TEXT,
             location TEXT,
             experience TEXT,
+            posted TEXT,
+            freshness_window_hours INTEGER,
             match_score REAL,
             skills TEXT,
             status TEXT,
@@ -27,9 +29,10 @@ def make_database(path):
     connection.execute(
         """
         INSERT INTO jobs (
-            title, company, source, location, experience, match_score,
-            skills, status, date_found, job_url
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            title, company, source, location, experience, posted,
+            freshness_window_hours, match_score, skills, status,
+            date_found, job_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             "Junior Data Analyst",
@@ -37,6 +40,8 @@ def make_database(path):
             "Naukri",
             "Bengaluru",
             "0-2 years",
+            "2 hours",
+            6,
             82.5,
             "Python, SQL, Pandas",
             "needs_review",
@@ -60,8 +65,9 @@ def test_export_jobs_creates_tracker_with_job_link(tmp_path, monkeypatch):
     sheet = workbook["Job Tracker"]
     assert sheet["A2"].value == "Junior Data Analyst"
     assert sheet["B2"].value == "Example Analytics"
-    assert sheet["F2"].value == 82.5
-    assert sheet["G2"].value == "Python, SQL, Pandas"
-    assert sheet["K2"].hyperlink.target == "https://www.naukri.com/example-job"
-    assert sheet["K2"].value == "OPEN JOB / APPLY"
+    assert sheet["F2"].value == "6h window"
+    assert sheet["G2"].value == 82.5
+    assert sheet["H2"].value == "Python, SQL, Pandas"
+    assert sheet["L2"].hyperlink.target == "https://www.naukri.com/example-job"
+    assert sheet["L2"].value == "OPEN JOB / APPLY"
     assert "Read Me" in workbook.sheetnames
