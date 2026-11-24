@@ -1,4 +1,4 @@
-# Naukri Job Automation & AI Resume Assistant
+# Naukri Resume Automation
 
 <p align="center">
   <strong>Discover relevant jobs. Match your skills. Prepare better resumes. Stay in control.</strong>
@@ -9,7 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation">View repository</a>
+  <a href="https://github.com/Vinodkumar-yerraballi/naukri-resume-automation">View repository</a>
+</p>
+
+<p align="center">
+  <em>Automate Naukri profile updates, smart job freshness filtering, and resume uploads.</em>
 </p>
 
 [![GitHub Actions](https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/actions/workflows/daily-tests.yml/badge.svg)](https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/actions/workflows/daily-tests.yml)
