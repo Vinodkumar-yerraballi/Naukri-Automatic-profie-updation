@@ -52,9 +52,11 @@ class JobRepository:
                 match_score,
                 status,
                 source,
-                date_found
+                date_found,
+                posted,
+                freshness_window_hours
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job.get("title"),
@@ -67,7 +69,9 @@ class JobRepository:
                 job.get("match_score"),
                 job.get("status", "FOUND"),
                 job.get("source"),
-                datetime.now().isoformat()
+                datetime.now().isoformat(),
+                job.get("posted"),
+                job.get("freshness_window_hours"),
             )
         )
         connection.commit()

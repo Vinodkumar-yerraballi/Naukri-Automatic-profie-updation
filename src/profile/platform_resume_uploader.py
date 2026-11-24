@@ -1308,6 +1308,11 @@ class CandidatePlatformBrowser:
             company = entry["company"].strip()
             identity = (title.casefold(), company.casefold())
             if identity in existing:
+                # JobRight-style: the role already exists. Open its editor and
+                # update only the description (bullet points) when it differs
+                # from the resume; otherwise leave the entry untouched.
+                if self._reconcile_foundit_experience(title, company, entry):
+                    changed = True
                 continue
 
             modal = self._open_foundit_modal("Add work experience")
@@ -1320,6 +1325,69 @@ class CandidatePlatformBrowser:
             existing.add(identity)
             changed = True
         return changed
+
+    def _reconcile_foundit_experience(
+        self,
+        title: str,
+        company: str,
+        entry: dict,
+    ) -> bool:
+        """Update an existing work experience entry's description only.
+
+        Mirrors the JobRight workflow: when a role already exists on the
+        profile, open its editor and update the description (bullet points)
+        only when it differs from the resume. If it already matches, the
+        entry is left untouched.
+        """
+        edit_buttons = self.page.locator("#SECTION_EDIT_BUTTON")
+        for index in range(edit_buttons.count()):
+            edit_buttons.nth(index).click(timeout=10000)
+            modal = self._foundit_modal()
+            if self._foundit_modal_heading(modal).casefold() != "edit work experience":
+                self._close_foundit_modal(modal)
+                continue
+
+            modal_title = self._first_filled_value(
+                modal, ("jobTitle", "manualCurrentJobTitle")
+            )
+            modal_company = self._first_filled_value(
+                modal, ("company", "manualCompany")
+            )
+            if (
+                modal_title.casefold() != title.casefold()
+                or modal_company.casefold() != company.casefold()
+            ):
+                self._close_foundit_modal(modal)
+                continue
+
+            description_field = modal.locator("#title")
+            if description_field.count() != 1:
+                self._close_foundit_modal(modal)
+                raise RuntimeError(
+                    "Foundit's experience description field could not be "
+                    "identified; the entry was not changed."
+                )
+            proposed_description = entry.get("description")
+            if not isinstance(proposed_description, str):
+                proposed_description = ""
+            existing_description = description_field.input_value().strip()
+
+            if proposed_description and existing_description != proposed_description:
+                try:
+                    description_field.fill(proposed_description.strip())
+                    self._save_foundit_modal(modal)
+                except (PlaywrightError, RuntimeError, ValueError):
+                    self._close_foundit_modal_if_open()
+                    raise
+                return True
+
+            self._close_foundit_modal(modal)
+            return False
+
+        raise RuntimeError(
+            f"Foundit could not find the existing work experience "
+            f"'{title}' at '{company}' to reconcile."
+        )
 
     def _fill_foundit_experience(self, modal: Locator, entry: dict) -> None:
         title = entry["title"].strip()

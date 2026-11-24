@@ -11,30 +11,51 @@ class FreshnessMatcher:
         max_hours: int = 24
     ) -> bool:
         """Return whether the displayed posting age is within the limit."""
-        if not posted or max_hours < 0:
-            return False
+        return self.best_window(posted, [max_hours]) is not None
 
+    @staticmethod
+    def age_hours(posted: str) -> int | None:
+        """Return the posting age in hours, or None when unknown."""
+        if not posted:
+            return None
         text = posted.lower().strip()
         if any(label in text for label in ("just now", "today", "few hours")):
-            return True
-
+            return 0
         match = re.search(
             r"(\d+)\+?\s*(hours?|hrs?|days?|weeks?|months?)",
             text
         )
         if not match:
-            return False
-
+            return None
         amount = int(match.group(1))
         unit = match.group(2)
         if unit in ("hour", "hours", "hr", "hrs"):
-            age_hours = amount
-        elif unit in ("day", "days"):
-            age_hours = amount * 24
-        else:
-            return False
+            return amount
+        if unit in ("day", "days"):
+            return amount * 24
+        return None
 
-        return age_hours <= max_hours
+    @classmethod
+    def best_window(
+        cls,
+        posted: str,
+        windows: list[int],
+    ) -> int | None:
+        """Return the smallest freshness window (in hours) that the posting
+        age fits, or None when it does not fit any window or is unknown.
+
+        Windows are sorted ascending, so a job posted 3 hours ago matches the
+        6-hour window rather than the 24-hour one.
+        """
+        if not posted or not windows:
+            return None
+        age = cls.age_hours(posted)
+        if age is None:
+            return None
+        for window in sorted(set(int(w) for w in windows if int(w) > 0)):
+            if age <= window:
+                return window
+        return None
 
     def get_match_result(self, posted: str) -> dict:
         if not posted or not posted.strip():

@@ -20,10 +20,19 @@ OUTPUT_PATH = Path("data/reports/job_tracker.xlsx")
 
 HEADERS = [
     "Job Title", "Company", "Platform", "Location", "Experience",
-    "Match Score (%)", "Key Skills", "Job Status", "Date Found",
+    "Freshness", "Match Score (%)", "Key Skills", "Job Status", "Date Found",
     "Job Link", "APPLY — OPEN JOB",
 ]
-WIDTHS = [32, 24, 16, 26, 16, 16, 48, 22, 22, 48, 24]
+WIDTHS = [32, 24, 16, 26, 16, 14, 16, 48, 22, 22, 48, 24]
+
+
+def freshness_label(posted: str, window_hours: int | None) -> str:
+    """Render a short freshness label for the tracker cell."""
+    if window_hours:
+        return f"{window_hours}h window"
+    if posted:
+        return posted
+    return "unknown"
 
 
 def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
@@ -39,7 +48,8 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
         rows = connection.execute(
             """
             SELECT title, company, source, location, experience,
-                   match_score, skills, status, date_found, job_url
+                   posted, freshness_window_hours, match_score, skills,
+                   status, date_found, job_url
             FROM jobs
             ORDER BY
                 CASE WHEN match_score IS NULL THEN 1 ELSE 0 END,
@@ -78,6 +88,7 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
             job["source"] or "",
             job["location"] or "",
             job["experience"] or "",
+            freshness_label(job["posted"], job["freshness_window_hours"]),
             score_value,
             skills,
             job["status"] or "",
@@ -86,12 +97,15 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
             "OPEN JOB / APPLY" if valid_url else "LINK UNAVAILABLE",
         ])
         row_number = sheet.max_row
-        sheet.cell(row_number, 6).number_format = '0.00"%"'
-        sheet.cell(row_number, 7).alignment = Alignment(
+        sheet.cell(row_number, 6).alignment = Alignment(
+            horizontal="center", vertical="center"
+        )
+        sheet.cell(row_number, 7).number_format = '0.00"%"'
+        sheet.cell(row_number, 8).alignment = Alignment(
             vertical="top", wrap_text=True
         )
         if valid_url:
-            apply_cell = sheet.cell(row_number, 11)
+            apply_cell = sheet.cell(row_number, 12)
             apply_cell.hyperlink = url
             apply_cell.style = "Hyperlink"
             apply_cell.font = Font(
@@ -102,7 +116,7 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
                 horizontal="center", vertical="center"
             )
         else:
-            sheet.cell(row_number, 11).font = Font(
+            sheet.cell(row_number, 12).font = Font(
                 color="808080", italic=True
             )
         sheet.row_dimensions[row_number].height = 32
@@ -112,7 +126,7 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
 
     if rows:
         sheet.conditional_formatting.add(
-            f"F2:F{len(rows) + 1}",
+            f"G2:G{len(rows) + 1}",
             ColorScaleRule(
                 start_type="num", start_value=0, start_color="F8696B",
                 mid_type="num", mid_value=60, mid_color="FFEB84",
@@ -121,7 +135,7 @@ def export_jobs(output_path: Path = OUTPUT_PATH) -> Path:
         )
         table = Table(
             displayName="JobTracker",
-            ref=f"A1:K{len(rows) + 1}",
+            ref=f"A1:L{len(rows) + 1}",
         )
         table.tableStyleInfo = TableStyleInfo(
             name="TableStyleMedium2",

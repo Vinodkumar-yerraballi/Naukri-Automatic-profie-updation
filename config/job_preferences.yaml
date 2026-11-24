@@ -31,7 +31,7 @@ job_search:
 
   posted_within_hours: 24
 
-  max_jobs_per_run: 20
+  max_jobs_per_run: 30
 
 
 matching:
@@ -101,6 +101,7 @@ naukri_profile:
     - headline
     - skills
     - employment
+    - projects
 
   profile_proposal_file: data/processed/profile_update_proposal.json
 

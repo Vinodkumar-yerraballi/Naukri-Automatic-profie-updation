@@ -266,6 +266,11 @@ class NaukriBrowser:
                 None,
             )
             if matching_row is not None:
+                # JobRight-style: the role already exists. Open its editor and
+                # update only the fields that differ - keywords (skills) and
+                # project/role bullet points. If they already match, leave it.
+                if self._reconcile_naukri_employment_row(matching_row, entry):
+                    changed = True
                 continue
 
             start_year, start_month = self._naukri_date_parts(start_date)
@@ -411,6 +416,78 @@ class NaukriBrowser:
                 )
             changed = True
         return changed
+
+    def _reconcile_naukri_employment_row(self, existing_row, entry: dict) -> bool:
+        """Update an existing employment row's keywords and bullets only.
+
+        Mirrors the JobRight workflow: when a role already exists on the
+        profile, open its editor and update the key skills (keywords) and
+        description (bullet points) only when they differ from the resume.
+        Existing skills are preserved; missing ones are added. If the
+        keywords and bullets already match, the row is left untouched.
+        """
+        edit_button = existing_row.locator(
+            ".edit[role='button'], .edit.icon[role='button']"
+        )
+        if edit_button.count() != 1:
+            raise RuntimeError(
+                "Naukri's employment edit control could not be identified."
+            )
+        edit_button.first.click(timeout=10000)
+        self.page.wait_for_timeout(500)
+
+        title_field = self.page.locator("#designationSugg")
+        company_field = self.page.locator("#companySugg")
+        description_field = self.page.locator("#jobDescription")
+        skill_field = self.page.locator("#keySkillSugg")
+        if any(field.count() != 1 for field in (
+            title_field, company_field, description_field, skill_field
+        )):
+            self._close_naukri_editor()
+            raise RuntimeError(
+                "Naukri's employment editor fields were not found."
+            )
+
+        proposed_skills = self._clean_naukri_skills(entry.get("skills"))
+        proposed_description = entry.get("description")
+        if not isinstance(proposed_description, str):
+            proposed_description = ""
+
+        existing_skills = {
+            self._normalize_naukri_skill(text)
+            for text in skill_field.locator(
+                "xpath=ancestor::div[contains(concat(' ', "
+                "normalize-space(@class), ' '), ' sWrap ')][1]"
+            ).locator(".chipsContainer .chip").all_inner_texts()
+            if text.strip()
+        }
+        existing_description = description_field.input_value().strip()
+
+        skills_changed = False
+        if proposed_skills:
+            missing = [
+                skill for skill in proposed_skills
+                if self._normalize_naukri_skill(skill) not in existing_skills
+            ]
+            if missing:
+                self._add_naukri_employment_skills(skill_field, missing)
+                skills_changed = True
+
+        description_changed = False
+        if proposed_description and existing_description != proposed_description:
+            description_field.fill(proposed_description.strip())
+            description_changed = True
+
+        if not skills_changed and not description_changed:
+            self._close_naukri_editor()
+            return False
+
+        try:
+            self._save_naukri_editor("#designationSugg")
+        except (PlaywrightError, RuntimeError, ValueError):
+            self._close_naukri_editor()
+            raise
+        return True
 
     @staticmethod
     def _clean_naukri_skills(skills: object) -> list[str]:
@@ -609,30 +686,30 @@ class NaukriBrowser:
         return year_match.group(), month
 
     def _open_naukri_section(self, section: str) -> None:
-        quick_link = self.page.locator("ul.collection li").filter(
-            has_text=section
-        )
-        if quick_link.count() == 0:
+        # Naukri renders profile sections directly on the page as widget
+        # cards; there is no longer a separate sidebar navigation list.
+        heading = self.page.locator(
+            ".widgetHead .widgetTitle, .widgetHead [role='heading']"
+        ).filter(has_text=section)
+        if heading.count() == 0:
             raise RuntimeError(
                 f"Could not find Naukri's {section} profile section."
             )
-        quick_link.first.locator("span.text").click(timeout=10000)
         card = self._naukri_section_card(section)
         card.wait_for(state="visible", timeout=10000)
 
     def _naukri_section_card(self, section: str):
-        heading = self.page.get_by_role(
-            "heading",
-            name=section,
-            exact=True,
-        )
+        heading = self.page.locator(
+            ".widgetHead .widgetTitle, .widgetHead [role='heading']"
+        ).filter(has_text=section)
         if heading.count() == 0:
             raise RuntimeError(
                 f"Naukri's {section} section did not load."
             )
         return heading.first.locator(
             "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), "
-            "' '), ' card ')][1]"
+            "' '), ' widgetHead ')][1]/following-sibling::div[contains(concat(' ', "
+            "normalize-space(@class), ' '), ' widgetCont ')][1]"
         )
 
     def _open_naukri_editor(self, aria_label: str):
@@ -871,6 +948,11 @@ class NaukriBrowser:
         for entry in entries:
             title = entry["title"].strip()
             if title.casefold() in existing:
+                # JobRight-style: the project already exists. Open its editor
+                # and update only the description (bullet points) when they
+                # differ; otherwise leave the entry untouched.
+                if self._reconcile_naukri_project_row(card, title, entry):
+                    changed = True
                 continue
             add_button = card.locator(".add")
             if add_button.count() != 1:
@@ -898,6 +980,73 @@ class NaukriBrowser:
             existing.add(title.casefold())
             changed = True
         return changed
+
+    def _reconcile_naukri_project_row(
+        self,
+        card,
+        title: str,
+        entry: dict,
+    ) -> bool:
+        """Update an existing project's description bullets only.
+
+        Mirrors the JobRight workflow: when a project already exists on the
+        profile, open its editor and update the description (bullet points)
+        only when they differ from the resume. If the bullets already match,
+        the entry is left untouched.
+        """
+        project_rows = card.locator(".project-list .row")
+        target_row = None
+        for index in range(project_rows.count()):
+            row = project_rows.nth(index)
+            title_locator = row.locator(".truncate.typ-14Bold")
+            if (
+                title_locator.count() == 1
+                and self._normalize_naukri_skill(
+                    title_locator.first.inner_text()
+                ) == self._normalize_naukri_skill(title)
+            ):
+                target_row = row
+                break
+        if target_row is None:
+            raise RuntimeError(
+                f"Could not find Naukri's existing project '{title}' to "
+                "reconcile."
+            )
+
+        edit_button = target_row.locator(
+            ".edit[role='button'], .edit.icon[role='button']"
+        )
+        if edit_button.count() != 1:
+            raise RuntimeError(
+                "Naukri's project edit control could not be identified."
+            )
+        edit_button.first.click(timeout=10000)
+        self.page.wait_for_timeout(300)
+
+        title_field = self.page.locator("#projectTitle")
+        details_field = self.page.locator("#projectDetails")
+        if title_field.count() != 1 or details_field.count() != 1:
+            self._close_naukri_editor()
+            raise RuntimeError(
+                "Naukri's project editor fields were not found."
+            )
+
+        proposed_description = entry.get("description")
+        if not isinstance(proposed_description, str):
+            proposed_description = ""
+        existing_description = details_field.input_value().strip()
+
+        if proposed_description and existing_description != proposed_description:
+            try:
+                details_field.fill(proposed_description.strip())
+                self._save_naukri_editor("#projectTitle")
+            except (PlaywrightError, RuntimeError, ValueError):
+                self._close_naukri_editor()
+                raise
+            return True
+
+        self._close_naukri_editor()
+        return False
 
     def submit_application(self, job: dict) -> dict:
         """Submit a one-step Naukri application after explicit user approval."""

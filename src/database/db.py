@@ -61,6 +61,14 @@ class JobDataBase:
             cursor.execute(
                 "ALTER TABLE jobs ADD COLUMN date_application_attempted TEXT"
             )
+        if "freshness_window_hours" not in columns:
+            cursor.execute(
+                "ALTER TABLE jobs ADD COLUMN freshness_window_hours INTEGER"
+            )
+        if "posted" not in columns:
+            cursor.execute(
+                "ALTER TABLE jobs ADD COLUMN posted TEXT"
+            )
         connection.commit()
         connection.close()
 

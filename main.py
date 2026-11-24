@@ -679,6 +679,8 @@ def run_shine_search() -> None:
     tailoring_config = config_manager.get_resume_tailoring_config()
     resume_tailoring = ResumeTailoringService.from_config(tailoring_config)
     minimum_score = config_manager.get_minimum_score()
+    best_resume_draft = None
+    best_resume_score = None
 
     try:
         browser.start()
@@ -743,6 +745,30 @@ def run_shine_search() -> None:
                 else:
                     drafted += 1
                     print(f"Tailored resume draft saved: {draft_path}")
+                    if (
+                        best_resume_draft is None
+                        or match_score > best_resume_score
+                    ):
+                        best_resume_draft = draft_path
+                        best_resume_score = match_score
+
+        # Auto-upload the best-matching tailored resume to enabled profiles
+        # so the freshest, highest-scoring job's resume is pushed out.
+        if best_resume_draft:
+            print(
+                f"\nUploading the best-matching tailored resume "
+                f"(match score: {best_resume_score:.1f}%) to enabled "
+                "profiles."
+            )
+            upload_failures = upload_resume_to_enabled_profiles(
+                str(best_resume_draft),
+                config_manager.get_naukri_profile_config(),
+                config_manager.get_resume_platform_configs(),
+                playwright=None,
+                headless=False,
+            )
+            for failure in upload_failures:
+                print(f"\n{failure}")
 
         print(
             "Shine search complete. "
@@ -1175,6 +1201,7 @@ def main(run_review=True, headless=False, update_profiles=True):
                     initial_naukri_config,
                     source_resume,
                     resume_tailoring,
+                    apply_profile_fields=True,
                 ):
                     print(f"\n{failure}")
         else:
@@ -1268,16 +1295,22 @@ def main(run_review=True, headless=False, update_profiles=True):
                 )
                 return
             for job_card in browser.get_job_cards():
-                if not freshness_matcher.is_within_last_hours(
-                    job_card.get("posted", ""),
-                    max_hours=posted_within_hours,
-                ):
+                posted = job_card.get("posted", "")
+                # Tiered freshness: 1 hour, 6 hours, then the configured
+                # window. A job posted 3 hours ago matches the 6-hour window
+                # rather than the 24-hour one, surfacing the freshest jobs first.
+                freshness_window = freshness_matcher.best_window(
+                    posted,
+                    [1, 6, posted_within_hours],
+                )
+                if posted and freshness_window is None:
                     print(
-                        "Skipping listing with unknown or older posting age: "
-                        f"{job_card.get('title', 'Unknown')} "
-                        f"({job_card.get('posted') or 'age unavailable'})"
+                        "Skipping listing with older posting age: "
+                        f"{job_card.get('title', 'Unknown')} ({posted})"
                     )
                     continue
+                if freshness_window is not None:
+                    job_card["freshness_window_hours"] = freshness_window
                 job_url = job_card.get("job_url")
                 if job_url:
                     jobs_by_url.setdefault(job_url, job_card)

@@ -93,10 +93,14 @@ class ShineJobSearch:
                 continue
             seen_urls.add(job_url)
 
-            if not freshness.is_within_last_hours(
+            # Tiered freshness: 1 hour, 6 hours, then the configured window.
+            # A job posted 3 hours ago matches the 6-hour window rather than
+            # the 24-hour one, so the freshest listings are surfaced first.
+            freshness_window = freshness.best_window(
                 posted,
-                max_hours=posted_within_hours,
-            ):
+                [1, 6, posted_within_hours],
+            )
+            if freshness_window is None:
                 print(
                     "Skipping Shine listing with unknown or older posting "
                     f"age: {title} ({posted or 'age unavailable'})."
@@ -132,6 +136,7 @@ class ShineJobSearch:
                     "posted": posted,
                     "description": description,
                     "description_is_complete": True,
+                    "freshness_window_hours": freshness_window,
                 }
             )
             if max_results is not None and len(jobs) >= max_results:

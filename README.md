@@ -475,6 +475,36 @@ notes.
 - Naukri may show CAPTCHA, OTP, or other security checks. Complete these
   yourself in the browser; the app does not bypass them.
 
+## Tiered freshness, auto-upload, and smart reconciliation
+
+### Tiered freshness windows (1h / 6h / 24h)
+
+Job searches use a tiered freshness ladder rather than a single cutoff. Each
+listing is checked against **1 hour, 6 hours, and then the configured window**
+(`posted_within_hours`, default 24), and the smallest window it fits is
+recorded. A job posted 3 hours ago therefore matches the 6-hour window rather
+than the 24-hour one, so the freshest listings surface first. Listings whose
+posting age is unknown or older than every window are skipped. The matched
+window is stored per job and shown in the Excel tracker's **Freshness**
+column.
+
+### Auto-upload the best-matching resume
+
+After a Naukri or Shine search, the highest-scoring tailored resume draft is
+uploaded to every enabled resume platform so the freshest, best-matching
+resume is pushed out. The source resume is never overwritten. Set
+`resume_tailoring.upload_best_draft_to_profiles` to `false` to disable this.
+
+### Smart profile reconciliation (JobRight-style)
+
+When a resume-supported role, project, or skill already exists on a platform,
+the updater opens that entry and changes **only** the fields that differ:
+keywords (skills) and project/role bullet points (description). Existing skills
+are preserved and missing ones are added; entries that already match are left
+untouched. This applies to Naukri (headline, skills, employment, projects),
+Foundit (skills, experience, projects), and Shine (summary, skills, work
+profile). No existing record is ever deleted.
+
 ## A practical review process for stronger applications
 
 1. **Keep the source resume evidence-based.** Use accurate job titles, dates,
