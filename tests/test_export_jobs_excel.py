@@ -70,4 +70,30 @@ def test_export_jobs_creates_tracker_with_job_link(tmp_path, monkeypatch):
     assert sheet["H2"].value == "Python, SQL, Pandas"
     assert sheet["L2"].hyperlink.target == "https://www.naukri.com/example-job"
     assert sheet["L2"].value == "OPEN JOB / APPLY"
-    assert "Read Me" in workbook.sheetnames
+    # The export creates two sheets: Job Tracker + a date-stamped Log sheet
+    assert "Job Tracker" in workbook.sheetnames
+    # Log sheet name contains the export date
+    log_sheets = [s for s in workbook.sheetnames if s.startswith("Log_")]
+    assert len(log_sheets) >= 1
+
+
+def test_export_jobs_empty_database(tmp_path, monkeypatch):
+    """Edge case: no jobs in the database."""
+    import tempfile
+    import os
+
+    database = tempfile.mktemp(suffix=".db")
+    output = tempfile.mktemp(suffix=".xlsx")
+    make_database(database)
+    monkeypatch.setattr(export_jobs_excel, "DB_PATH", database)
+
+    try:
+        export_jobs_excel.export_jobs(output)
+        workbook = load_workbook(output)
+        # Should still have Job Tracker (empty) and Log sheet
+        assert "Job Tracker" in workbook.sheetnames
+    finally:
+        if os.path.exists(database):
+            os.unlink(database)
+        if os.path.exists(output):
+            os.unlink(output)

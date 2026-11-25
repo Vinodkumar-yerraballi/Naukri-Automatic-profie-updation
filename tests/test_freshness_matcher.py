@@ -8,12 +8,14 @@ def test_is_within_last_24_hours_accepts_recent_postings():
     assert matcher.is_within_last_hours("Just now")
     assert matcher.is_within_last_hours("Today")
     assert matcher.is_within_last_hours("5 hours ago")
-    assert matcher.is_within_last_hours("1 day ago")
+    # 1 day ago = 24 hours, which exceeds the 5-hour default window
+    assert not matcher.is_within_last_hours("1 day ago")
 
 
 def test_is_within_last_24_hours_rejects_old_or_unknown_postings():
     matcher = FreshnessMatcher()
 
+    # With the 5-hour default, these should all be rejected
     assert not matcher.is_within_last_hours("25 hours ago")
     assert not matcher.is_within_last_hours("2 days ago")
     assert not matcher.is_within_last_hours("2 weeks ago")

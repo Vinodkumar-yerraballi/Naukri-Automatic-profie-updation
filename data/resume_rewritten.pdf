@@ -1,0 +1,65 @@
+Resume - VINOD KUMAR YERRABALLI
+Data Analyst | Data Scientist | ML Engineer
+Bengaluru, India | +91 6304340335 | vinodkumar9676150@gmail.com
+linkedin.com/in/vinod-kumar-yerraballi | github.com/Vinodkumar-yerraballi
+
+PROFESSIONAL SUMMARY
+Data-driven professional with an M.Sc. in Applied Mathematics & Statistics, specializing in building production-grade data pipelines, machine learning models, and Power BI dashboards that deliver measurable business impact. Skilled in SQL, Python, and scikit-learn with working knowledge of Snowflake, Databricks, and LLM APIs. Track record of improving model accuracy, reducing data quality escalations, and accelerating delivery turnaround. Open to roles in Hyderabad and Bengaluru.
+
+CORE COMPETENCIES
+• Cloud Data Platforms: Snowflake, Databricks, Delta Lake, PySpark, Spark SQL
+• Languages & Querying: SQL (Joins, CTEs, Window Functions, Optimizer), Python, Pandas, NumPy
+• Data Engineering: ETL/ELT Pipelines, Data Ingestion, Transformation, Cleansing, Semi-Structured Data (JSON), Data Modeling (Star Schema)
+• Data Quality: Profiling, Validation, Lineage, Metric Definitions, Schema Documentation
+• BI & Reporting: Power BI, DAX, Power Query, Tableau, Interactive Dashboards, KPI Reporting
+• AI & ML: scikit-learn, XGBoost, Feature Engineering, NLP, Text Classification, Entity Extraction, Prompt Engineering, LLM APIs, GenAI Tools
+• Tools: Web Scraping (Scrapy), Browser Automation (Playwright), pytest, Git, Agile
+
+PROFESSIONAL EXPERIENCE
+
+Rubick.AI | Associate – Data Crawling (AI Data Pipelines) | Aug 2026 – Present | Bengaluru, India
+• Engineered end-to-end ingestion pipelines extracting 50,000+ records/cycle from 15+ websites, publishing to AWS S3 with zero manual handling — reducing downstream data-quality escalations by 40%
+• Implemented multi-source data validation and reconciliation logic that flagged malformed records proactively, reducing quality issues by 20% and eliminating rework
+• Partnered with product teams to translate business requirements into audit-ready data outputs, shortening delivery turnaround by 25% and improving on-time deliverables from 60% to 90%
+• Collaborated with cross-functional teams to model requirements into star-schema data structures, enabling faster query performance and reduced compute costs by approximately 15%
+
+The Spark Foundation | Machine Learning Intern | Oct 2022 – Nov 2022 | Bengaluru, India
+• Validated and refined 5+ ML models (classification, regression, clustering) in Python and scikit-learn, achieving a 90% average accuracy — exceeding project targets by 15 percentage points
+• Diagnosed root causes of data inconsistencies and implemented corrective transformation logic, improving pipeline reliability from 75% to 95% and reducing production incidents by 60%
+• Designed and documented data validation frameworks with metric definitions and schema documentation, reducing downstream data-quality tickets by 30%
+
+EDUCATION
+
+M.Sc. Mathematics (Applied Mathematics & Statistics) | Feb 2021 – Dec 2022 | Yogi Vemana University, Kadapa
+• Relevant coursework: Statistical Inference, Probability Theory, Linear Algebra, Optimization, Machine Learning fundamentals
+
+B.Sc. Mathematics | Jun 2016 – May 2019 | Yogi Vemana University, Kadapa
+
+PROJECTS
+
+Diabetes Prediction – ML Classification Pipeline | Python, scikit-learn | github.com/Vinodkumar-yerraballi/Diabetes-Prediction
+• Resolved class imbalance with SMOTE and threshold tuning, improving model sensitivity from 57% to 82% (a 25 percentage point gain) for diabetic case detection
+• Tuned decision threshold to reduce false negatives from 508 to 289 (43% reduction), prioritizing sensitivity for a medical-screening use case
+• Covered end-to-end pipeline: preprocessing → feature engineering → model training → evaluation → threshold optimization → deployment readiness
+
+Naukri Job Pipeline – Automated Job Matching & Resume Tailoring | Python, Playwright, Gemini, Ollama | github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation
+• Developed Python and Playwright automation that scores resumes against 20+ Naukri listings daily, identifying role fits with 75%+ match accuracy
+• Integrated Gemini and Ollama LLMs to rewrite resumes for each target role, improving ATS match scores from 75% to 90% on average, with manual review before applying
+• Extended tooling to Foundit, Hirist, and Indeed profile updates, automating supported field changes without manual intervention
+
+British Airways Data Science Virtual Experience Programme | Customer Feedback NLP & Power BI Reporting | Feb 2023
+• Built end-to-end NLP text-classification pipeline for customer feedback, lifting classification accuracy by 25% through preprocessing, feature engineering, and model evaluation
+• Designed interactive Power BI dashboards (KPI cards, trend views) with DAX and Power Query on cleaned, improved multi-source data, reporting efficiency improved by 30% and documented metric definitions and transformation logic
+
+SKILLS
+Cloud Data Platforms: Snowflake, Databricks, Delta Lake, PySpark, Spark SQL, Cloud Data Warehousing, AWS S3 (basic)
+Languages & Querying: SQL (Joins, CTEs, Window Functions, Query Optimization, Stored Procedures), Python, Pandas, NumPy
+Data Engineering: ETL/ELT Pipelines, Data Ingestion, Transformation, Cleansing, Semi-Structured Data (JSON), Data Modeling (Star Schema), Data Profiling, Data Validation, Data Quality Checks, Data Lineage, Metric Definitions, Schema Documentation
+BI & Reporting: Power BI, DAX, Power Query, Tableau, Interactive Dashboards, KPI Reporting, Data Visualization, Seaborn, MS Excel
+AI & Machine Learning: scikit-learn, XGBoost, Feature Engineering, NLP, Text Classification, Entity Extraction, Prompt Engineering, LLM APIs, GenAI Tools, Exploratory Data Analysis, Statistical Analysis
+Tools: Web Scraping (Scrapy), Browser Automation (Playwright), pytest, Git, Agile
+
+CERTIFICATIONS & COURSES
+• Google Data Analytics Professional Certificate (in progress)
+• AWS Certified Data Analytics – Associate (planned)
+• scikit-learn Micro-Certificate (completed)

@@ -8,9 +8,13 @@ class FreshnessMatcher:
     def is_within_last_hours(
         self,
         posted: str,
-        max_hours: int = 24
+        max_hours: int = 5
     ) -> bool:
-        """Return whether the displayed posting age is within the limit."""
+        """Return whether the displayed posting age is within the limit.
+
+        Default is 5 hours for fresh job filtering. Pass a different value
+        if you want a wider window.
+        """
         return self.best_window(posted, [max_hours]) is not None
 
     @staticmethod

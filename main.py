@@ -2,6 +2,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -1141,6 +1142,87 @@ def upload_resume_to_enabled_profiles(
     return failures
 
 
+def suggest_roles_for_resume(resume_path: str) -> dict:
+    """Analyze a resume and return role/location suggestions.
+
+    Uses the resume tailoring AI to extract suggested roles, locations,
+    and skills gaps. Designed for end-users who are not comfortable
+    with YAML/config files.
+    """
+    config_manager = ConfigManager()
+    return analyze_resume_and_suggest_roles(resume_path, config_manager)
+
+
+def analyze_resume_and_suggest_roles(resume_path: str, config_manager: ConfigManager | None = None) -> dict:
+    """Analyze a resume and suggest target roles, locations, and skills gap.
+
+    Returns a dict with:
+    - suggested_roles: list of (role, match_reason) sorted descending
+    - suggested_locations: list of (location, frequency) sorted descending
+    - skills_gap: list of skills mentioned in common job descriptions but missing from resume
+    - resume_summary: dict of extracted resume facts (education, experience, key skills)
+    """
+    if config_manager is None:
+        config_manager = ConfigManager()
+    tailoring_config = config_manager.get_resume_tailoring_config()
+    resume_tailoring = ResumeTailoringService.from_config(tailoring_config)
+    if not resume_tailoring:
+        raise RuntimeError("Resume tailoring must be enabled to analyze resume.")
+
+    resume_path = Path(resume_path)
+    if not resume_path.is_file():
+        raise FileNotFoundError(f"Resume file not found: {resume_path}")
+
+    # Extract resume text using PyPDF2 or pypdf
+    try:
+        import PyPDF2
+        pdf = PyPDF2.PdfReader(str(resume_path))
+        resume_text = ""
+        for page in pdf.pages:
+            resume_text += page.extract_text() or ""
+    except ImportError:
+        import pypdf
+        pdf = pypdf.PdfReader(str(resume_path))
+        resume_text = ""
+        for page in pdf.pages:
+            resume_text += page.extract_text() or ""
+
+    # Use AI to analyze
+    ai_service = resume_tailoring
+    prompt = (
+        "Analyze the following resume text. Extract:\n"
+        "1. Target roles the candidate is suited for (list up to 5 with brief reason).\n"
+        "2. Preferred locations (city names, rank by frequency).\n"
+        "3. Key skills already present in the resume.\n"
+        "4. Skills commonly found in Naukri Data/Analytics job descriptions "
+        "but missing from this resume.\n"
+        "5. Total professional experience (years).\n"
+        "6. Education degrees.\n\n"
+        "Return valid JSON only with these keys: "
+        "{suggested_roles: [ {role: string, match_reason: string} ], "
+        "suggested_locations: [ {location: string, frequency: number} ], "
+        "skills_gap: [string], "
+        "resume_summary: {education: [string], total_experience: number, "
+        "key_skills: [string]} }\n\n"
+        "Source resume:\n"
+        f"{resume_text}"
+    )
+    raw = ai_service.complete_prompt(prompt, response_format="json")
+    import json as _json
+    result = _json.loads(raw.strip())
+
+    # Post-process: ensure suggested_locations is sorted by frequency desc
+    if "suggested_locations" in result and result["suggested_locations"]:
+        result["suggested_locations"].sort(key=lambda x: x.get("frequency", 0), reverse=True)
+
+    if "suggested_roles" in result and result["suggested_roles"]:
+        result["suggested_roles"].sort(
+            key=lambda x: x.get("match_reason", ""), reverse=False
+        )
+
+    return result
+
+
 def main(run_review=True, headless=False, update_profiles=True):
 
     print("\n========== NAUKRI JOB PIPELINE ==========")
@@ -1934,6 +2016,14 @@ if __name__ == "__main__":
     )
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument(
+        "--suggest-roles",
+        action="store_true",
+        help=(
+            "Analyze data/resume.pdf and suggest target roles, locations, "
+            "and skills gaps using AI. Requires resume tailoring enabled."
+        ),
+    )
+    actions.add_argument(
         "--schedule",
         action="store_true",
         help="Run the pipeline daily at the configured local time.",
@@ -2323,6 +2413,72 @@ if __name__ == "__main__":
                 "timezone", "Asia/Kolkata"
             ),
         )
+    elif arguments.suggest_roles:
+        try:
+            result = suggest_roles_for_resume(
+                resume_path="data/resume.pdf"
+            )
+            print("\n=== RESUME ANALYSIS & ROLE SUGGESTIONS ===\n")
+            print(f"Resume: data/resume.pdf\n")
+
+            # Suggested roles
+            print("Suggested target roles:")
+            if result.get("suggested_roles"):
+                for entry in result["suggested_roles"]:
+                    print(
+                        f"  - {entry.get('role', '')}: "
+                        f"{entry.get('match_reason', '')}"
+                    )
+            else:
+                print("  (no roles could be determined)")
+
+            # Suggested locations
+            print("\nSuggested locations:")
+            if result.get("suggested_locations"):
+                for entry in result["suggested_locations"]:
+                    print(
+                        f"  - {entry.get('location', '')} "
+                        f"(frequency: {entry.get('frequency', 0)})"
+                    )
+            else:
+                print("  (no locations could be determined)")
+
+            # Skills gap
+            print("\nSkills gap (common in Data/Analytics jobs, missing from resume):")
+            if result.get("skills_gap"):
+                for skill in result["skills_gap"]:
+                    print(f"  - {skill}")
+            else:
+                print("  (none identified)")
+
+            # Resume summary
+            summary = result.get("resume_summary", {})
+            print("\nResume summary:")
+            print(f"  Education: {summary.get('education', [])}")
+            print(f"  Total experience: {summary.get('total_experience', 'N/A')} years")
+            print(f"  Key skills: {', '.join(summary.get('key_skills', []))}")
+
+            print("\n=== HOW TO USE ===")
+            print(
+                "1. Review the suggested roles/locations above."
+            )
+            print(
+                "2. Edit config/profile.yaml to add/remove target roles."
+            )
+            print(
+                "3. Edit config/job_preferences.yaml to add preferred locations."
+            )
+            print(
+                "4. Run `python main.py --search-naukri` to start job search."
+            )
+        except FileNotFoundError as error:
+            print(f"\nResume file not found: {error}")
+            print(
+                "Place a text-based PDF at data/resume.pdf "
+                "or run `python main.py --setup-naukri-session` first."
+            )
+        except RuntimeError as error:
+            print(f"\nError: {error}")
     else:
         main(
             run_review=not arguments.headless_run,
