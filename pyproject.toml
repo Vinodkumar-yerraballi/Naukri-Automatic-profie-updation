@@ -7,7 +7,7 @@ dependencies = [
     "playwright",
     "pyyaml",
     "pypdf",
-    "openpyxl",
+    "openpexl",
 ]
 
 [project.scripts]
@@ -21,14 +21,3 @@ dev = [
     "black",
     "ruff",
 ]
-
-[project.urls]
-Homepage = "https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation"
-Bug Tracker = "https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/issues"
-License = "MIT"
-
-[tool.black]
-line-length = 88
-
-[tool.ruff]
-line-length = 88
