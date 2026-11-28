@@ -1,0 +1,35 @@
+[project]
+name = "naukri-resume-automation"
+version = "1.0.0"
+description = "Naukri profile automation with Playwright"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright",
+    "pyyaml",
+    "pypdf",
+    "openpyxl",
+    "pyppdf",
+]
+
+[project.scripts]
+naukri-automation = "main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "black",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation"
+Bug Tracker = "https://github.com/Vinodkumar-yerraballi/Naukri-Automatic-profie-updation/issues"
+License = "MIT"
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
